@@ -1,0 +1,1556 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PACTOMETRO</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+/* ── TOKENS ─────────────────────────────────────── */
+:root {
+  --bg:      #0b0e16;
+  --surface: #111722;
+  --card:    #181f30;
+  --b:       rgba(148,163,184,.07);
+  --b2:      rgba(148,163,184,.15);
+  --t1:      #e2e8f0;
+  --t2:      #94a3b8;
+  --t3:      #475569;
+  --blue:    #38bdf8;
+  --green:   #4ade80;
+  --red:     #f87171;
+  --yellow:  #fbbf24;
+  --purple:  #a78bfa;
+  --orange:  #fb923c;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  height: 100%;
+  overflow: hidden;
+  font-family: 'Inter', system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--t1);
+  font-size: 14px;
+}
+
+/* dot-grid board texture */
+body {
+  background-image: radial-gradient(circle, rgba(148,163,184,.06) 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+
+/* ── LOADING BAR ────────────────────────────────── */
+#loader {
+  position: fixed; top: 0; left: 0; right: 0; height: 2px;
+  background: linear-gradient(90deg, var(--blue), var(--purple), var(--blue));
+  background-size: 200% 100%;
+  animation: shimmer 1.4s linear infinite;
+  display: none; z-index: 999;
+}
+#loader.on { display: block; }
+@keyframes shimmer { to { background-position: -200% 0; } }
+
+/* ── SHELL ──────────────────────────────────────── */
+.shell {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+/* ── HEADER ─────────────────────────────────────── */
+.header {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: .7rem 1.25rem;
+  border-bottom: 1px solid var(--b);
+  background: rgba(11,14,22,.92);
+  backdrop-filter: blur(10px);
+  z-index: 50;
+}
+
+.logo {
+  font-size: 1rem;
+  font-weight: 900;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--blue);
+  white-space: nowrap;
+  user-select: none;
+}
+.logo em { color: var(--t3); font-style: normal; }
+
+.url-form {
+  display: flex;
+  gap: .5rem;
+  flex: 1;
+  max-width: 580px;
+  margin-left: auto;
+}
+
+.url-input {
+  flex: 1;
+  background: var(--card);
+  border: 1px solid var(--b2);
+  border-radius: 6px;
+  padding: .45rem .75rem;
+  color: var(--t1);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: .72rem;
+  outline: none;
+  transition: border-color .18s;
+}
+.url-input:focus { border-color: var(--blue); }
+.url-input::placeholder { color: var(--t3); }
+
+.btn {
+  background: var(--blue);
+  color: #0b0e16;
+  border: none;
+  border-radius: 6px;
+  padding: .45rem 1rem;
+  font-family: 'Inter', sans-serif;
+  font-weight: 800;
+  font-size: .72rem;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: opacity .15s;
+  white-space: nowrap;
+}
+.btn:hover { opacity: .85; }
+.btn:disabled { opacity: .35; cursor: not-allowed; }
+
+/* ── EVENT BANNER ───────────────────────────────── */
+.banner {
+  flex-shrink: 0;
+  padding: 1rem 1.25rem .85rem;
+  border-bottom: 1px solid var(--b);
+  background: linear-gradient(135deg, rgba(56,189,248,.06) 0%, transparent 55%);
+  display: none;
+}
+.banner.on { display: block; }
+
+.banner-name {
+  font-size: 1.15rem;
+  font-weight: 900;
+  letter-spacing: .03em;
+  text-transform: uppercase;
+}
+
+.banner-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.25rem;
+  margin-top: .35rem;
+}
+.banner-meta-item {
+  display: flex;
+  align-items: center;
+  gap: .35rem;
+  font-size: .72rem;
+  color: var(--t2);
+  font-weight: 500;
+}
+.banner-meta-item::before {
+  content: '';
+  width: 4px; height: 4px;
+  border-radius: 50%;
+  background: var(--blue);
+}
+
+.phase-pills {
+  display: flex;
+  gap: .35rem;
+  flex-wrap: wrap;
+  margin-top: .6rem;
+}
+.pill {
+  padding: .18rem .55rem;
+  border-radius: 4px;
+  font-size: .65rem;
+  font-weight: 700;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+  border: 1px solid;
+}
+.pill.done   { color: var(--green);  border-color: rgba(74,222,128,.3);  background: rgba(74,222,128,.07);  }
+.pill.active { color: var(--yellow); border-color: rgba(251,191,36,.3);  background: rgba(251,191,36,.07);  }
+.pill.wait   { color: var(--t3);     border-color: rgba(71,85,105,.4);   background: transparent; }
+
+/* ── MAIN BOARD ─────────────────────────────────── */
+.board {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  overflow: hidden;
+}
+
+/* ── STANDINGS PANEL ────────────────────────────── */
+.standings {
+  border-right: 1px solid var(--b);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.panel-bar {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .5rem;
+  padding: .6rem .85rem;
+  border-bottom: 1px solid var(--b);
+  background: var(--bg);
+}
+
+.panel-label {
+  font-size: .6rem;
+  font-weight: 700;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--t3);
+  white-space: nowrap;
+}
+
+.round-tabs {
+  display: flex;
+  gap: 3px;
+  flex-wrap: wrap;
+}
+
+.rtab {
+  width: 26px; height: 26px;
+  border-radius: 5px;
+  border: 1px solid var(--b2);
+  background: transparent;
+  color: var(--t2);
+  font-size: .68rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all .13s;
+  font-family: 'JetBrains Mono', monospace;
+}
+.rtab:hover { background: var(--card); color: var(--t1); }
+.rtab.on    { background: var(--blue); color: #0b0e16; border-color: var(--blue); }
+.rtab.live  { border-color: var(--yellow); color: var(--yellow); }
+
+.standings-scroll { flex: 1; overflow-y: auto; }
+
+.s-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.s-table th {
+  padding: .45rem .75rem;
+  text-align: left;
+  font-size: .6rem;
+  font-weight: 700;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--t3);
+  border-bottom: 1px solid var(--b);
+  background: var(--bg);
+  position: sticky;
+  top: 0;
+  z-index: 5;
+}
+.s-table td {
+  padding: .5rem .75rem;
+  border-bottom: 1px solid var(--b);
+  vertical-align: middle;
+}
+.s-table tr.p-row {
+  cursor: pointer;
+  transition: background .1s;
+  border-left: 3px solid transparent;
+}
+.s-table tr.p-row:hover  { background: rgba(56,189,248,.04); }
+.s-table tr.p-row.active {
+  background: rgba(56,189,248,.09);
+  border-left-color: var(--blue);
+}
+
+.rank-num {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: .68rem;
+  color: var(--t3);
+  width: 28px;
+}
+
+.handle    { font-weight: 600; font-size: .82rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 120px; display: block; }
+.real-name { font-size: .66rem; color: var(--t3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 120px; display: block; }
+.rec-cell  { font-family: 'JetBrains Mono', monospace; font-size: .75rem; color: var(--t2); white-space: nowrap; }
+.pts-cell  { font-family: 'JetBrains Mono', monospace; font-size: .82rem; font-weight: 700; }
+
+.sdot {
+  display: inline-block;
+  width: 7px; height: 7px;
+  border-radius: 50%;
+}
+.sdot.ok  { background: var(--green);  box-shadow: 0 0 5px var(--green); }
+.sdot.out { background: var(--t3); }
+
+.s-empty {
+  padding: 3rem 1rem;
+  text-align: center;
+  color: var(--t3);
+  font-size: .8rem;
+  letter-spacing: .05em;
+}
+
+/* ── DETAIL PANEL ───────────────────────────────── */
+.detail {
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.detail-placeholder {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: .75rem;
+  color: var(--t3);
+}
+.detail-placeholder-icon { font-size: 3rem; opacity: .25; }
+.detail-placeholder p    { font-size: .8rem; letter-spacing: .06em; }
+
+/* ── PLAYER HEADER ──────────────────────────────── */
+.player-head {
+  padding: 1.25rem 1.5rem 1rem;
+  border-bottom: 1px solid var(--b);
+  background: linear-gradient(135deg, rgba(56,189,248,.07) 0%, transparent 60%);
+  display: flex;
+  gap: 1.1rem;
+  align-items: flex-start;
+}
+
+.avatar {
+  flex-shrink: 0;
+  width: 52px; height: 52px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.3rem;
+  font-weight: 900;
+  letter-spacing: -.02em;
+  border: 1px solid var(--b2);
+}
+
+.player-head-info { flex: 1; min-width: 0; }
+
+.d-handle {
+  font-size: 1.4rem;
+  font-weight: 900;
+  letter-spacing: .02em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.d-real {
+  font-size: .75rem;
+  color: var(--t3);
+  margin-top: .15rem;
+}
+
+.stat-row {
+  display: flex;
+  gap: 1.25rem;
+  margin-top: .85rem;
+  flex-wrap: wrap;
+}
+.stat {
+  display: flex;
+  flex-direction: column;
+  gap: .18rem;
+}
+.stat-label {
+  font-size: .58rem;
+  font-weight: 700;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--t3);
+}
+.stat-val {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 1rem;
+  font-weight: 700;
+}
+.stat-val.blue   { color: var(--blue); }
+.stat-val.green  { color: var(--green); }
+.stat-val.purple { color: var(--purple); }
+.stat-val.red    { color: var(--red); }
+
+/* ── SECTION ─────────────────────────────────────── */
+.section {
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid var(--b);
+}
+.section-title {
+  font-size: .6rem;
+  font-weight: 700;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--t3);
+  margin-bottom: .85rem;
+}
+
+/* ── TWO-COL ROW ────────────────────────────────── */
+.two-col-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border-bottom: 1px solid var(--b);
+}
+.two-col-row > .section {
+  border-bottom: none;
+  min-width: 0;
+}
+.two-col-row > .section:first-child {
+  border-right: 1px solid var(--b);
+}
+
+@media (max-width: 1100px) {
+  .two-col-row { grid-template-columns: 1fr; }
+  .two-col-row > .section:first-child { border-right: none; border-bottom: 1px solid var(--b); }
+}
+
+/* ── SIMULATION ─────────────────────────────────── */
+.sim-header {
+  display: grid;
+  grid-template-columns: 52px 36px 72px 90px 1fr;
+  gap: .5rem;
+  padding: 0 .5rem .4rem;
+  font-size: .58rem;
+  font-weight: 700;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--t3);
+  border-bottom: 1px solid var(--b);
+  margin-bottom: .4rem;
+}
+
+.sim-row {
+  display: grid;
+  grid-template-columns: 52px 36px 72px 90px 1fr;
+  align-items: center;
+  gap: .5rem;
+  padding: .55rem .5rem;
+  border-radius: 7px;
+  margin-bottom: .3rem;
+  border: 1px solid transparent;
+  transition: opacity .15s;
+}
+.sim-row.win  { background: rgba(74,222,128,.06);  border-color: rgba(74,222,128,.18); }
+.sim-row.draw { background: rgba(251,191,36,.06);  border-color: rgba(251,191,36,.18); }
+.sim-row.loss { background: rgba(248,113,113,.06); border-color: rgba(248,113,113,.18); }
+
+.sim-lbl {
+  font-size: .7rem;
+  font-weight: 800;
+  letter-spacing: .08em;
+}
+.sim-row.win  .sim-lbl { color: var(--green); }
+.sim-row.draw .sim-lbl { color: var(--yellow); }
+.sim-row.loss .sim-lbl { color: var(--red); }
+
+.sim-delta {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: .68rem;
+  color: var(--t3);
+}
+.sim-pts {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: .88rem;
+  font-weight: 700;
+  color: var(--t1);
+}
+.sim-rank {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: .75rem;
+  color: var(--t2);
+}
+
+.sim-verdict {
+  display: inline-flex;
+  align-items: center;
+  gap: .3rem;
+  padding: .18rem .5rem;
+  border-radius: 4px;
+  font-size: .62rem;
+  font-weight: 800;
+  letter-spacing: .06em;
+  white-space: nowrap;
+}
+.sim-verdict.lock { background: rgba(56,189,248,.18);  color: var(--blue); }
+.sim-verdict.safe { background: rgba(74,222,128,.15);  color: var(--green); }
+.sim-verdict.risk { background: rgba(251,191,36,.15);  color: var(--yellow); }
+.sim-verdict.out  { background: rgba(248,113,113,.15); color: var(--red); }
+.sim-verdict.nocut { color: var(--t3); font-size: .65rem; }
+
+.sim-note {
+  margin-top: .65rem;
+  font-size: .62rem;
+  color: var(--t3);
+  font-style: italic;
+  line-height: 1.5;
+}
+
+/* ── OMW CHART ──────────────────────────────────── */
+.chart-wrap {
+  width: 100%;
+  height: 130px;
+}
+.chart-wrap svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+/* ── ROUND HISTORY ──────────────────────────────── */
+.rh-wrap { padding: 0 1.5rem 2rem; }
+
+.rh-header {
+  display: grid;
+  grid-template-columns: 34px 1fr 70px 72px 68px 42px;
+  gap: .5rem;
+  padding: .35rem .5rem .35rem 1rem;
+  font-size: .58rem;
+  font-weight: 700;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--t3);
+  border-bottom: 1px solid var(--b2);
+  margin-bottom: .25rem;
+}
+
+.rh-row {
+  display: grid;
+  grid-template-columns: 34px 1fr 70px 72px 68px 42px;
+  gap: .5rem;
+  align-items: center;
+  padding: .55rem .5rem .55rem 1rem;
+  border-bottom: 1px solid var(--b);
+  border-left: 3px solid transparent;
+  transition: background .1s;
+}
+.rh-row:hover { background: rgba(148,163,184,.03); }
+.rh-row.win  { border-left-color: var(--green); }
+.rh-row.loss { border-left-color: var(--red); }
+.rh-row.draw { border-left-color: var(--yellow); }
+
+.rh-num {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: .68rem;
+  font-weight: 700;
+  color: var(--t3);
+}
+.rh-opp {
+  font-size: .8rem;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--t1);
+}
+.rh-opp.none { color: var(--t3); }
+.rh-opp.link { cursor: pointer; }
+.rh-opp.link:hover { color: var(--blue); text-decoration: underline; text-decoration-style: dotted; }
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: .15rem .45rem;
+  border-radius: 4px;
+  font-size: .62rem;
+  font-weight: 800;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+}
+.badge.win  { background: rgba(74,222,128,.13);  color: var(--green); }
+.badge.loss { background: rgba(248,113,113,.13); color: var(--red); }
+.badge.draw { background: rgba(251,191,36,.13);  color: var(--yellow); }
+.badge.none { color: var(--t3); font-size: .7rem; }
+
+.rh-rec {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: .7rem;
+  color: var(--t2);
+}
+.rh-omw {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: .7rem;
+  color: var(--purple);
+  text-align: right;
+}
+.rh-rank {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: .7rem;
+  color: var(--t3);
+  text-align: right;
+}
+
+/* ── TOP CUT BAR ────────────────────────────────── */
+.top-cut-bar {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: .65rem;
+  padding: .55rem .85rem;
+  border-bottom: 1px solid var(--b);
+  background: var(--bg);
+}
+
+.top-cut-lbl {
+  font-size: .58rem;
+  font-weight: 700;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--t3);
+  white-space: nowrap;
+}
+
+.top-cut-input {
+  width: 58px;
+  background: var(--card);
+  border: 1px solid rgba(251,191,36,.35);
+  border-radius: 6px;
+  color: var(--yellow);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 1.4rem;
+  font-weight: 700;
+  text-align: center;
+  padding: .15rem .25rem;
+  outline: none;
+  transition: border-color .15s, opacity .15s;
+  -moz-appearance: textfield;
+}
+.top-cut-input::-webkit-inner-spin-button,
+.top-cut-input::-webkit-outer-spin-button { -webkit-appearance: none; }
+.top-cut-input:focus  { border-color: var(--yellow); }
+.top-cut-input:disabled { opacity: .25; cursor: not-allowed; }
+
+.no-cut-label {
+  display: flex;
+  align-items: center;
+  gap: .35rem;
+  font-size: .68rem;
+  color: var(--t3);
+  cursor: pointer;
+  margin-left: auto;
+  white-space: nowrap;
+  user-select: none;
+}
+.no-cut-label input[type=checkbox] {
+  accent-color: var(--blue);
+  width: 13px; height: 13px;
+  cursor: pointer;
+}
+
+/* cut line in table */
+.cut-line td {
+  padding: 0;
+  border: none;
+}
+.cut-line-inner {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  padding: .3rem .75rem;
+  font-size: .58rem;
+  font-weight: 700;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--yellow);
+  background: rgba(251,191,36,.04);
+  border-top: 1px dashed rgba(251,191,36,.25);
+  border-bottom: 1px dashed rgba(251,191,36,.25);
+}
+.cut-line-inner::before,
+.cut-line-inner::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: rgba(251,191,36,.2);
+}
+
+/* in-cut row tint */
+.s-table tr.p-row.in-cut { background: rgba(251,191,36,.03); }
+.s-table tr.p-row.in-cut:hover { background: rgba(251,191,36,.07); }
+.s-table tr.p-row.in-cut.active { background: rgba(56,189,248,.09); }
+
+/* ── SCROLLBAR ──────────────────────────────────── */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--b2); border-radius: 2px; }
+
+/* ── MENU BUTTON (mobile only) ──────────────────── */
+.menu-btn {
+  display: none;
+  align-items: center;
+  gap: .35rem;
+  background: transparent;
+  border: 1px solid var(--b2);
+  border-radius: 6px;
+  color: var(--t2);
+  padding: .38rem .65rem;
+  font-family: 'Inter', sans-serif;
+  font-size: .7rem;
+  font-weight: 700;
+  letter-spacing: .06em;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: border-color .15s, color .15s;
+}
+.menu-btn:hover { border-color: var(--blue); color: var(--blue); }
+
+.close-drawer-btn {
+  display: none;
+  background: transparent;
+  border: none;
+  color: var(--t3);
+  font-size: 1rem;
+  cursor: pointer;
+  padding: .2rem .3rem;
+  line-height: 1;
+  transition: color .15s;
+  flex-shrink: 0;
+}
+.close-drawer-btn:hover { color: var(--t1); }
+
+/* ── DRAWER OVERLAY ─────────────────────────────── */
+.drawer-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.55);
+  z-index: 199;
+  -webkit-backdrop-filter: blur(2px);
+  backdrop-filter: blur(2px);
+}
+.drawer-overlay.on { display: block; }
+
+/* ── RESPONSIVE ─────────────────────────────────── */
+@media (max-width: 760px) {
+  .board { grid-template-columns: 1fr; }
+
+  .standings {
+    position: fixed;
+    top: 0; left: 0; bottom: 0;
+    width: min(300px, 88vw);
+    z-index: 200;
+    border-right: 1px solid var(--b2);
+    background: var(--bg);
+    transform: translateX(-100%);
+    transition: transform .25s cubic-bezier(.4,0,.2,1);
+  }
+  .standings.open {
+    transform: translateX(0);
+    box-shadow: 8px 0 40px rgba(0,0,0,.65);
+  }
+
+  .menu-btn { display: flex; }
+  .close-drawer-btn { display: block; }
+
+  .url-form { max-width: none; }
+
+  .player-head { flex-wrap: wrap; }
+  .stat-row { gap: .9rem; }
+}
+</style>
+</head>
+<body>
+<div id="loader"></div>
+
+<div class="shell">
+
+  <!-- Header -->
+  <header class="header">
+    <div class="logo">Pacto<em>metro</em></div>
+    <form class="url-form" id="form">
+      <input class="url-input" id="url-input" type="text"
+             placeholder="https://tcg.ravensburgerplay.com/events/515727" />
+      <button class="btn" id="load-btn" type="submit">Load</button>
+    </form>
+    <button class="menu-btn" id="menu-btn" aria-label="Open player roster">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round">
+        <path d="M1.5 3.5h11M1.5 7h11M1.5 10.5h11"/>
+      </svg>
+      Roster
+    </button>
+  </header>
+
+  <!-- Event Banner -->
+  <div class="banner" id="banner">
+    <div class="banner-name" id="b-name"></div>
+    <div class="banner-meta" id="b-meta"></div>
+    <div class="phase-pills" id="b-phases"></div>
+  </div>
+
+  <!-- Board -->
+  <div class="board">
+
+    <!-- Standings -->
+    <aside class="standings" id="standings-panel">
+      <div class="panel-bar">
+        <span class="panel-label">Standings</span>
+        <div class="round-tabs" id="round-tabs"></div>
+        <button class="close-drawer-btn" id="close-drawer-btn" aria-label="Close roster">✕</button>
+      </div>
+      <div class="top-cut-bar">
+        <span class="top-cut-lbl">Top cut</span>
+        <input class="top-cut-input" id="top-cut-input" type="number" min="1" max="128" value="8">
+        <label class="no-cut-label">
+          <input type="checkbox" id="no-cut-cb">
+          No top cut
+        </label>
+      </div>
+
+      <div class="standings-scroll">
+        <div class="s-empty" id="s-empty">Load an event to see standings</div>
+        <table class="s-table" id="s-table" style="display:none">
+          <thead>
+            <tr>
+              <th style="width:28px">#</th>
+              <th>Player</th>
+              <th>Rec</th>
+              <th>Pts</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="s-body"></tbody>
+        </table>
+      </div>
+    </aside>
+
+    <!-- Detail -->
+    <section class="detail" id="detail">
+      <div class="detail-placeholder" id="d-placeholder">
+        <div class="detail-placeholder-icon">◎</div>
+        <p>Select a player to analyse</p>
+      </div>
+
+      <div id="d-content" style="display:none">
+
+        <!-- Player head -->
+        <div class="player-head">
+          <div class="avatar" id="d-avatar"></div>
+          <div class="player-head-info">
+            <div class="d-handle" id="d-handle"></div>
+            <div class="d-real"   id="d-real"></div>
+            <div class="stat-row">
+              <div class="stat"><div class="stat-label">Rank</div>   <div class="stat-val blue"   id="d-rank"></div></div>
+              <div class="stat"><div class="stat-label">Record</div> <div class="stat-val"         id="d-rec"></div></div>
+              <div class="stat"><div class="stat-label">Points</div> <div class="stat-val green"  id="d-pts"></div></div>
+              <div class="stat"><div class="stat-label">OMW%</div>   <div class="stat-val purple" id="d-omw"></div></div>
+              <div class="stat"><div class="stat-label">GW%</div>    <div class="stat-val purple" id="d-gw"></div></div>
+              <div class="stat"><div class="stat-label">Status</div> <div class="stat-val"         id="d-status"></div></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Simulation + OMW side by side -->
+        <div class="two-col-row">
+
+          <div class="section" id="sim-section">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.75rem;gap:.75rem">
+              <div class="section-title" id="sim-title" style="margin-bottom:0">Simulation</div>
+              <div class="round-tabs" id="sim-round-tabs" style="flex-shrink:0"></div>
+            </div>
+            <div class="sim-header">
+              <div>Outcome</div>
+              <div>+Pts</div>
+              <div>Total</div>
+              <div>Rank range</div>
+              <div>Cut</div>
+            </div>
+            <div id="sim-rows"></div>
+            <div class="sim-note" id="sim-note"></div>
+          </div>
+
+          <div class="section">
+            <div class="section-title">OMW% Evolution</div>
+            <div class="chart-wrap">
+              <svg id="omw-svg" viewBox="0 0 800 130" preserveAspectRatio="none"></svg>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Round history -->
+        <div class="section" style="border-bottom:none; padding-bottom:.25rem">
+          <div class="section-title">Round History</div>
+        </div>
+        <div class="rh-wrap">
+          <div class="rh-header">
+            <div>Rnd</div>
+            <div>Opponent</div>
+            <div>Result</div>
+            <div>Record</div>
+            <div style="text-align:right">OMW%</div>
+            <div style="text-align:right">Rank</div>
+          </div>
+          <div id="rh-rows"></div>
+        </div>
+
+      </div>
+    </section>
+
+  </div><!-- /board -->
+</div><!-- /shell -->
+<div class="drawer-overlay" id="drawer-overlay"></div>
+
+<script>
+// ── API ──────────────────────────────────────────
+const api = (path, params = {}) => {
+  const qs = new URLSearchParams(params).toString();
+  return fetch(`/api${path}${qs ? '?' + qs : ''}`)
+    .then(r => { if (!r.ok) throw new Error(`${r.status} ${path}`); return r.json(); });
+};
+
+// ── STATE ────────────────────────────────────────
+const S = {
+  event:      null,
+  rounds:     [],   // [{id, round_number, phase_name, status, pairings_status, standings_status}]
+  standings:  {},   // round_id → results[]
+  matches:    {},   // round_id → match[]
+  viewRound:  null,
+  simRound:   null, // round_id used for the simulation panel
+  activeId:   null,
+};
+
+// ── HELPERS ──────────────────────────────────────
+const $  = id => document.getElementById(id);
+const fmtDate = iso => new Date(iso).toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' });
+const fmtOmw  = v  => v != null ? (v * 100).toFixed(1) + '%' : '—';
+const loader  = on  => { $('loader').classList.toggle('on', on); $('load-btn').disabled = on; };
+
+function playerColor(id) {
+  const palette = ['#38bdf8','#4ade80','#f87171','#fbbf24','#a78bfa','#fb923c','#e879f9','#34d399','#f472b6','#60a5fa'];
+  return palette[Math.abs(id) % palette.length];
+}
+
+function extractEventId(raw) {
+  const m = raw.match(/events\/(\d+)/);
+  return m ? m[1] : null;
+}
+
+// ── PERSISTENCE ──────────────────────────────────
+function saveUrl(url)  { localStorage.setItem('pm_url', url); }
+function savePlayer(id){ localStorage.setItem('pm_player', String(id)); }
+function clearPlayer() { localStorage.removeItem('pm_player'); }
+
+function getTopCut() {
+  if ($('no-cut-cb').checked) return null;
+  return parseInt($('top-cut-input').value) || null;
+}
+function saveTopCut() {
+  localStorage.setItem('pm_top_cut',    $('top-cut-input').value);
+  localStorage.setItem('pm_no_top_cut', $('no-cut-cb').checked ? '1' : '0');
+}
+function restoreTopCut() {
+  const val   = localStorage.getItem('pm_top_cut');
+  const noCut = localStorage.getItem('pm_no_top_cut') === '1';
+  if (val) $('top-cut-input').value = val;
+  $('no-cut-cb').checked          = noCut;
+  $('top-cut-input').disabled     = noCut;
+}
+
+function saveCache(eventId) {
+  try {
+    localStorage.setItem(`pm_cache_${eventId}`, JSON.stringify({
+      event:     S.event,
+      rounds:    S.rounds,
+      standings: S.standings,
+      matches:   S.matches,
+      savedAt:   Date.now(),
+    }));
+  } catch(e) {
+    // localStorage quota exceeded — skip silently
+    console.warn('Cache write failed:', e.message);
+  }
+}
+
+function loadCache(eventId) {
+  try {
+    const raw = localStorage.getItem(`pm_cache_${eventId}`);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch(e) {
+    return null;
+  }
+}
+
+function applyCache(cached) {
+  S.event     = cached.event;
+  S.rounds    = cached.rounds;
+  S.standings = cached.standings;
+  S.matches   = cached.matches;
+}
+
+// ── LOAD EVENT ───────────────────────────────────
+async function loadEvent(url, restorePlayerId = null, { fromCache = false } = {}) {
+  const eid = extractEventId(url);
+  if (!eid) { alert('Could not find event ID in URL'); return; }
+
+  // Try cache first when restoring session (not when user explicitly clicks Load)
+  if (fromCache) {
+    const cached = loadCache(eid);
+    if (cached) {
+      applyCache(cached);
+      const withStandings = S.rounds.filter(r => r.standings_status === 'GENERATED');
+      S.viewRound = withStandings.at(-1)?.id ?? S.rounds.at(-1)?.id;
+      saveUrl(url);
+      renderBanner();
+      renderRoundTabs();
+      renderStandings();
+      if (restorePlayerId) selectPlayer(restorePlayerId); else clearDetail();
+      return;
+    }
+  }
+
+  loader(true);
+  S.standings = {}; S.matches = {}; S.rounds = []; S.activeId = null;
+
+  try {
+    const ev = await api(`/events/${eid}/`);
+    S.event = ev;
+
+    S.rounds = ev.tournament_phases.flatMap(phase =>
+      phase.rounds.map(r => ({ ...r, phase_name: phase.phase_name, phase_type: phase.round_type }))
+    );
+
+    // Fetch all standings + matches in parallel
+    await Promise.all([
+      Promise.all(
+        S.rounds.filter(r => r.standings_status === 'GENERATED').map(r =>
+          api(`/tournament-rounds/${r.id}/standings/paginated/`, { page: 1, page_size: 200 })
+            .then(d => { S.standings[r.id] = d.results; })
+            .catch(() => { S.standings[r.id] = []; })
+        )
+      ),
+      Promise.all(
+        S.rounds.filter(r => r.pairings_status === 'GENERATED').map(r =>
+          api(`/tournament-rounds/${r.id}/matches/paginated/`, { page: 1, page_size: 200 })
+            .then(d => { S.matches[r.id] = d.results || []; })
+            .catch(() => { S.matches[r.id] = []; })
+        )
+      ),
+    ]);
+
+    const withStandings = S.rounds.filter(r => r.standings_status === 'GENERATED');
+    S.viewRound = withStandings.at(-1)?.id ?? S.rounds.at(-1)?.id;
+
+    // Default sim to last Swiss round with data (not Top 8)
+    const swissWithData = withStandings.filter(r => r.phase_type === 'SWISS');
+    S.simRound = (swissWithData.at(-1) ?? withStandings.at(-1))?.id;
+
+    // Fixed OMW axis across all players & rounds
+    let gMin = 1, gMax = 0;
+    for (const rows of Object.values(S.standings)) {
+      for (const p of rows) {
+        const v = p.opponent_match_win_percentage;
+        if (v != null) { gMin = Math.min(gMin, v); gMax = Math.max(gMax, v); }
+      }
+    }
+    S.omwRange = { min: Math.max(0, gMin - 0.02), max: Math.min(1, gMax + 0.02) };
+
+    saveUrl(url);
+    saveCache(eid);
+    renderBanner();
+    renderRoundTabs();
+    renderStandings();
+
+    if (restorePlayerId) {
+      selectPlayer(restorePlayerId);
+    } else {
+      clearDetail();
+    }
+  } catch(e) {
+    alert('Failed to load: ' + e.message);
+    console.error(e);
+  } finally {
+    loader(false);
+  }
+}
+
+// ── RENDER: BANNER ───────────────────────────────
+function renderBanner() {
+  const ev = S.event;
+  $('banner').classList.add('on');
+  $('b-name').textContent = ev.name;
+
+  const items = [
+    ev.store ? `${ev.store.name} · ${ev.store.administrative_area_level_1_short || ''}, ${ev.store.country}` : null,
+    fmtDate(ev.start_datetime),
+    `${ev.starting_player_count} players`,
+    ev.gameplay_format?.name || ev.event_format,
+  ].filter(Boolean);
+
+  $('b-meta').innerHTML = items.map(t =>
+    `<div class="banner-meta-item">${t}</div>`
+  ).join('');
+
+  $('b-phases').innerHTML = ev.tournament_phases.map(ph => {
+    const cls = ph.status === 'COMPLETE' ? 'done' : ph.status === 'IN_PROGRESS' ? 'active' : 'wait';
+    return `<span class="pill ${cls}">${ph.phase_name} · ${ph.rounds.length}R</span>`;
+  }).join('');
+}
+
+// ── RENDER: ROUND TABS ───────────────────────────
+function renderRoundTabs() {
+  const el = $('round-tabs');
+  el.innerHTML = '';
+  S.rounds.forEach(r => {
+    const btn = document.createElement('button');
+    btn.className = 'rtab' +
+      (r.id === S.viewRound ? ' on' : '') +
+      (r.status === 'IN_PROGRESS' ? ' live' : '');
+    btn.textContent = r.round_number;
+    btn.title = `${r.phase_name} — Round ${r.round_number} (${r.status})`;
+    btn.onclick = () => { S.viewRound = r.id; renderRoundTabs(); renderStandings(); };
+    el.appendChild(btn);
+  });
+}
+
+// ── RENDER: STANDINGS ────────────────────────────
+function renderStandings() {
+  const rows = (S.standings[S.viewRound] || []).slice().sort((a,b) => a.rank - b.rank);
+
+  if (rows.length === 0) {
+    $('s-empty').textContent = 'No standings for this round yet';
+    $('s-empty').style.display = '';
+    $('s-table').style.display = 'none';
+    return;
+  }
+
+  $('s-empty').style.display = 'none';
+  $('s-table').style.display = '';
+
+  const cut = getTopCut();
+  let html = '';
+
+  for (const p of rows) {
+    const ues    = p.user_event_status;
+    const handle = ues.best_identifier || p.player.best_identifier;
+    const active = ues.registration_status === 'COMPLETE';
+    const sel    = p.id === S.activeId;
+    const inCut  = cut != null && p.rank <= cut;
+
+    html += `
+      <tr class="p-row${inCut ? ' in-cut' : ''}${sel ? ' active' : ''}" data-id="${p.id}">
+        <td class="rank-num">${p.rank}</td>
+        <td><span class="handle">${handle}</span><span class="real-name">${p.player.best_identifier}</span></td>
+        <td class="rec-cell">${p.record}</td>
+        <td class="pts-cell">${p.points}</td>
+        <td><span class="sdot ${active ? 'ok' : 'out'}"></span></td>
+      </tr>`;
+
+    if (cut != null && p.rank === cut) {
+      html += `<tr class="cut-line"><td colspan="5"><div class="cut-line-inner">Top ${cut}</div></td></tr>`;
+    }
+  }
+
+  $('s-body').innerHTML = html;
+  $('s-body').querySelectorAll('.p-row').forEach(tr => {
+    tr.onclick = () => selectPlayer(parseInt(tr.dataset.id));
+  });
+}
+
+// ── SELECT PLAYER ────────────────────────────────
+function selectPlayer(pid) {
+  S.activeId = pid;
+  savePlayer(pid);
+  document.querySelectorAll('.p-row').forEach(tr =>
+    tr.classList.toggle('active', parseInt(tr.dataset.id) === pid)
+  );
+  renderDetail(pid);
+  closeRoster();
+}
+
+// ── RENDER: DETAIL ───────────────────────────────
+function renderDetail(pid) {
+  // Get latest data for this player
+  const withData = S.rounds.filter(r => r.standings_status === 'GENERATED');
+  const lastRound = withData.at(-1);
+  if (!lastRound) return;
+  const latest = (S.standings[lastRound.id] || []).find(p => p.id === pid);
+  if (!latest) return;
+
+  const ues = latest.user_event_status;
+  const handle = ues.best_identifier || latest.player.best_identifier;
+  const color  = playerColor(pid);
+  const active = ues.registration_status === 'COMPLETE';
+
+  $('d-placeholder').style.display = 'none';
+  $('d-content').style.display     = '';
+
+  // Avatar (initials)
+  $('d-avatar').textContent = handle.slice(0,2).toUpperCase();
+  $('d-avatar').style.background = color + '18';
+  $('d-avatar').style.color = color;
+  $('d-avatar').style.border = `1px solid ${color}40`;
+
+  $('d-handle').textContent = handle;
+  $('d-real').textContent   = latest.player.best_identifier;
+  $('d-rank').textContent   = '#' + latest.rank;
+  $('d-rec').textContent    = latest.record;
+  $('d-pts').textContent    = latest.points + ' pts';
+  $('d-omw').textContent    = fmtOmw(latest.opponent_match_win_percentage);
+  $('d-gw').textContent     = fmtOmw(latest.game_win_percentage);
+
+  const statusEl = $('d-status');
+  statusEl.textContent = active ? 'ACTIVE' : 'ELIMINATED';
+  statusEl.className   = 'stat-val ' + (active ? 'green' : 'red');
+
+  const history = buildHistory(pid);
+  renderSimRoundTabs();
+  renderSimulation(pid);
+  renderChart(history);
+  renderHistory(history);
+}
+
+function clearDetail() {
+  S.activeId = null;
+  $('d-placeholder').style.display = '';
+  $('d-content').style.display     = 'none';
+}
+
+// ── BUILD HISTORY ────────────────────────────────
+function buildHistory(pid) {
+  const history = [];
+
+  for (const r of S.rounds) {
+    if (r.standings_status !== 'GENERATED') continue;
+    const st = (S.standings[r.id] || []).find(p => p.id === pid);
+    if (!st) continue;
+
+    // Find match for this player in this round
+    const roundMatches = S.matches[r.id] || [];
+    const match = roundMatches.find(m => m.players && m.players.includes(pid));
+
+    let result = null, score = null, opponent = null, opponentId = null, isBye = false;
+
+    if (match) {
+      isBye = match.match_is_bye;
+
+      if (isBye) {
+        result = 'W';
+        score  = 'BYE';
+      } else if (match.match_is_intentional_draw || match.match_is_unintentional_draw) {
+        result = 'D';
+        score  = `${match.games_drawn ?? 1}-${match.games_drawn ?? 1}`;
+      } else if (match.winning_player != null) {
+        result = match.winning_player === pid ? 'W' : 'L';
+        const myGames  = match.winning_player === pid ? match.games_won_by_winner : match.games_won_by_loser;
+        const oppGames = match.winning_player === pid ? match.games_won_by_loser  : match.games_won_by_winner;
+        score = `${myGames}-${oppGames}`;
+      }
+
+      // Opponent from player_match_relationships
+      const oppRel = (match.player_match_relationships || []).find(rel => rel.player.id !== pid);
+      if (oppRel) {
+        opponent = oppRel.user_event_status?.best_identifier || oppRel.player?.best_identifier || null;
+        opponentId = oppRel.player.id;
+      }
+    }
+
+    history.push({
+      round_number: r.round_number,
+      phase_name:   r.phase_name,
+      result, score, opponent, opponentId, isBye,
+      rank:   st.rank,
+      record: st.record,
+      points: st.points,
+      omw:    st.opponent_match_win_percentage,
+      gw:     st.game_win_percentage,
+    });
+  }
+  return history;
+}
+
+// ── RENDER: OMW CHART (SVG) ──────────────────────
+function renderChart(history) {
+  const svg = $('omw-svg');
+  svg.innerHTML = '';
+
+  const pts = history.filter(h => h.omw != null);
+  if (pts.length < 1) return;
+
+  const W = 800, H = 130;
+  const PAD = { top: 12, right: 24, bottom: 22, left: 38 };
+  const iW = W - PAD.left - PAD.right;
+  const iH = H - PAD.top  - PAD.bottom;
+
+  const minV = S.omwRange?.min ?? 0.25;
+  const maxV = S.omwRange?.max ?? 0.85;
+
+  const xS = i  => PAD.left + (i / Math.max(pts.length - 1, 1)) * iW;
+  const yS = v  => PAD.top  + (1 - (v - minV) / (maxV - minV)) * iH;
+
+  const ns = 'http://www.w3.org/2000/svg';
+  const el = (tag, attrs) => {
+    const node = document.createElementNS(ns, tag);
+    Object.entries(attrs).forEach(([k, v]) => node.setAttribute(k, v));
+    return node;
+  };
+
+  // Defs: gradient
+  const defs = el('defs', {});
+  const grad = el('linearGradient', { id: 'og', x1: '0', y1: '0', x2: '0', y2: '1' });
+  const s1 = el('stop', { offset: '0%',   'stop-color': '#a78bfa', 'stop-opacity': '.25' });
+  const s2 = el('stop', { offset: '100%', 'stop-color': '#a78bfa', 'stop-opacity': '0' });
+  grad.append(s1, s2); defs.append(grad); svg.append(defs);
+
+  // Grid lines
+  [.33, .5, .67, .75].forEach(v => {
+    if (v < minV || v > maxV) return;
+    const y = yS(v);
+    svg.append(el('line', { x1: PAD.left, x2: W - PAD.right, y1: y, y2: y,
+      stroke: 'rgba(148,163,184,.08)', 'stroke-width': '1', 'stroke-dasharray': '4 4' }));
+    const t = el('text', { x: PAD.left - 5, y: y + 4,
+      'text-anchor': 'end', fill: 'rgba(148,163,184,.35)',
+      'font-size': '9', 'font-family': 'JetBrains Mono, monospace' });
+    t.textContent = Math.round(v * 100) + '%';
+    svg.append(t);
+  });
+
+  if (pts.length >= 2) {
+    const pointsStr = pts.map((h, i) => `${xS(i)},${yS(h.omw)}`).join(' ');
+    const firstX = xS(0), lastX = xS(pts.length - 1), bottom = PAD.top + iH;
+
+    // Area
+    svg.append(el('path', {
+      d: `M ${firstX} ${yS(pts[0].omw)} ` +
+         pts.slice(1).map((h, i) => `L ${xS(i+1)} ${yS(h.omw)}`).join(' ') +
+         ` L ${lastX} ${bottom} L ${firstX} ${bottom} Z`,
+      fill: 'url(#og)',
+    }));
+
+    // Line
+    svg.append(el('polyline', {
+      points: pointsStr,
+      fill: 'none', stroke: '#a78bfa', 'stroke-width': '2', 'stroke-linejoin': 'round',
+    }));
+  }
+
+  // Dots + labels
+  pts.forEach((h, i) => {
+    const cx = xS(i), cy = yS(h.omw);
+    const dotColor = h.result === 'W' ? '#4ade80' : h.result === 'L' ? '#f87171' : h.result === 'D' ? '#fbbf24' : '#a78bfa';
+
+    svg.append(el('circle', { cx, cy, r: '4.5', fill: dotColor, stroke: '#0b0e16', 'stroke-width': '1.5' }));
+
+    const label = el('text', { x: cx, y: PAD.top + iH + 16,
+      'text-anchor': 'middle', fill: 'rgba(148,163,184,.45)',
+      'font-size': '9', 'font-family': 'JetBrains Mono, monospace' });
+    label.textContent = 'R' + h.round_number;
+    svg.append(label);
+  });
+}
+
+// ── RENDER: ROUND HISTORY ────────────────────────
+function renderHistory(history) {
+  $('rh-rows').innerHTML = history.map(h => {
+    const rc  = h.result === 'W' ? 'win' : h.result === 'L' ? 'loss' : h.result === 'D' ? 'draw' : '';
+    const lbl = h.result === 'W' ? 'WIN' : h.result === 'L' ? 'LOSS' : h.result === 'D' ? 'DRAW' : '—';
+    const badgeText = h.score ? `${lbl} ${h.score}` : lbl;
+    const oppHtml = h.opponent
+      ? `<span class="rh-opp link" data-pid="${h.opponentId}">${h.opponent}</span>`
+      : `<span class="rh-opp none">—</span>`;
+    return `
+      <div class="rh-row ${rc}">
+        <div class="rh-num">R${h.round_number}</div>
+        ${oppHtml}
+        <div><span class="badge ${rc || 'none'}">${badgeText}</span></div>
+        <div class="rh-rec">${h.record}</div>
+        <div class="rh-omw">${fmtOmw(h.omw)}</div>
+        <div class="rh-rank">#${h.rank}</div>
+      </div>`;
+  }).join('');
+}
+
+// ── SIMULATION ───────────────────────────────────
+function projectRank(pid, projPts, allStandings, myRemaining, othersRemaining) {
+  const myCeiling = projPts + myRemaining * 3;
+  let defAbove = 0, mayAbove = 0, absAbove = 0;
+  for (const p of allStandings) {
+    if (p.id === pid) continue;
+    const P = p.points;
+    if (P > myCeiling)                     defAbove++;
+    if (P > projPts)                       mayAbove++;
+    if (P + othersRemaining * 3 > projPts) absAbove++;
+  }
+  return { best: defAbove + 1, worst: mayAbove + 1, absoluteWorst: absAbove + 1 };
+}
+
+function renderSimRoundTabs() {
+  const el = $('sim-round-tabs');
+  if (!el) return;
+  el.innerHTML = '';
+
+  // Only show rounds with standings data
+  const eligible = S.rounds.filter(r => r.standings_status === 'GENERATED');
+  if (eligible.length <= 1) { el.style.display = 'none'; return; }
+  el.style.display = '';
+
+  eligible.forEach(r => {
+    const isSwiss = r.phase_type === 'SWISS';
+    const btn = document.createElement('button');
+    btn.className = 'rtab' + (r.id === S.simRound ? ' on' : '') + (!isSwiss ? ' live' : '');
+    btn.textContent = r.round_number;
+    btn.title = `${r.phase_name} — Round ${r.round_number}${!isSwiss ? ' (elimination)' : ''}`;
+    btn.onclick = () => {
+      S.simRound = r.id;
+      renderSimRoundTabs();
+      if (S.activeId) renderSimulation(S.activeId);
+    };
+    el.appendChild(btn);
+  });
+}
+
+function renderSimulation(pid) {
+  if (!S.simRound) return;
+
+  const round = S.rounds.find(r => r.id === S.simRound);
+  if (!round) return;
+
+  const standings = S.standings[S.simRound] || [];
+  const me = standings.find(p => p.id === pid);
+  if (!me) return;
+
+  const cut        = getTopCut();
+  const currentPts = me.points;
+  const isElim     = round.phase_type !== 'SWISS';
+
+  // Figure out label: what round are we projecting INTO?
+  const allWithData = S.rounds.filter(r => r.standings_status === 'GENERATED');
+  const nextIdx     = allWithData.findIndex(r => r.id === S.simRound) + 1;
+  const nextRound   = allWithData[nextIdx];
+  const intoLabel   = nextRound ? `R${nextRound.round_number}` : 'Top cut';
+  $('sim-title').textContent = `R${round.round_number} → ${intoLabel} Simulation`;
+
+  if (isElim) {
+    $('sim-rows').innerHTML = `<div style="color:var(--t3);font-size:.78rem;padding:.5rem 0">
+      Simulation is most meaningful for Swiss rounds.<br>
+      Select a Swiss round above to project cut scenarios.
+    </div>`;
+    $('sim-note').textContent = '';
+    return;
+  }
+
+  // Remaining rounds: how many Swiss rounds are still to play after the simulated one
+  const swissRounds     = S.rounds.filter(r => r.phase_type === 'SWISS');
+  const totalSwiss      = swissRounds.length;
+  const myRemaining     = Math.max(0, totalSwiss - round.round_number - 1);
+  const othersRemaining = Math.max(0, totalSwiss - round.round_number);
+
+  const scenarios = [
+    { label: 'WIN',  delta: 3, cls: 'win'  },
+    { label: 'DRAW', delta: 1, cls: 'draw' },
+    { label: 'LOSS', delta: 0, cls: 'loss' },
+  ];
+
+  $('sim-rows').innerHTML = scenarios.map(({ label, delta, cls }) => {
+    const projPts                              = currentPts + delta;
+    const { best, worst, absoluteWorst }       = projectRank(pid, projPts, standings, myRemaining, othersRemaining);
+
+    let verdictHtml = '';
+    if (cut) {
+      if (best > cut)              verdictHtml = `<span class="sim-verdict out">✗ OUT</span>`;
+      else if (absoluteWorst <= cut) verdictHtml = `<span class="sim-verdict lock">✦ LOCKED</span>`;
+      else if (worst <= cut)       verdictHtml = `<span class="sim-verdict safe">✓ SAFE</span>`;
+      else                         verdictHtml = `<span class="sim-verdict risk">⚠ RISKY</span>`;
+    } else {
+      verdictHtml = `<span class="sim-verdict nocut">—</span>`;
+    }
+
+    const rankText = best === worst ? `#${best}` : `#${best}–${worst}`;
+
+    return `
+      <div class="sim-row ${cls}">
+        <div class="sim-lbl">${label}</div>
+        <div class="sim-delta">+${delta}</div>
+        <div class="sim-pts">${projPts}</div>
+        <div class="sim-rank">${rankText}</div>
+        <div>${verdictHtml}</div>
+      </div>`;
+  }).join('');
+
+  const cutLine    = cut ? ` · Top ${cut} cut` : ' · No cut configured';
+  const roundsCtx  = myRemaining > 0
+    ? ` · ${myRemaining} round${myRemaining > 1 ? 's' : ''} remaining after this`
+    : ' · Final Swiss round';
+  $('sim-note').textContent =
+    `R${round.round_number} standings · ${standings.length} players${cutLine}${roundsCtx} · Tiebreakers not modelled`;
+}
+
+// Click opponent name → jump to that player
+$('rh-rows').addEventListener('click', e => {
+  const span = e.target.closest('.rh-opp.link');
+  if (!span) return;
+  const pid = parseInt(span.dataset.pid);
+  if (pid) selectPlayer(pid);
+});
+
+// ── ROSTER DRAWER (mobile) ────────────────────────
+function openRoster() {
+  $('standings-panel').classList.add('open');
+  $('drawer-overlay').classList.add('on');
+}
+function closeRoster() {
+  $('standings-panel').classList.remove('open');
+  $('drawer-overlay').classList.remove('on');
+}
+
+$('menu-btn').addEventListener('click', openRoster);
+$('close-drawer-btn').addEventListener('click', closeRoster);
+$('drawer-overlay').addEventListener('click', closeRoster);
+
+// ── FORM ─────────────────────────────────────────
+$('form').addEventListener('submit', e => {
+  e.preventDefault();
+  const url = $('url-input').value.trim();
+  if (url) loadEvent(url);
+});
+
+// ── TOP CUT CONTROLS ─────────────────────────────
+$('no-cut-cb').addEventListener('change', () => {
+  $('top-cut-input').disabled = $('no-cut-cb').checked;
+  saveTopCut();
+  renderStandings();
+  if (S.activeId) renderSimulation(S.activeId);
+});
+
+$('top-cut-input').addEventListener('input', () => {
+  saveTopCut();
+  renderStandings();
+  if (S.activeId) renderSimulation(S.activeId);
+});
+
+// ── RESTORE SESSION ──────────────────────────────
+window.addEventListener('DOMContentLoaded', () => {
+  restoreTopCut();
+  const savedUrl    = localStorage.getItem('pm_url');
+  const savedPlayer = localStorage.getItem('pm_player');
+  if (savedUrl) {
+    $('url-input').value = savedUrl;
+    loadEvent(savedUrl, savedPlayer ? parseInt(savedPlayer) : null, { fromCache: true });
+  }
+});
+</script>
+</body>
+</html>

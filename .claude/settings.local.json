@@ -1,0 +1,25 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:tcg.ravensburgerplay.com)",
+      "WebFetch(domain:api.tcg.ravensburgerplay.com)",
+      "Bash(curl -s \"https://tcg.ravensburgerplay.com/events/515727\")",
+      "WebFetch(domain:api.cloudflare.ravensburgerplay.com)",
+      "Bash(curl -si \"https://api.cloudflare.ravensburgerplay.com/hydraproxy/api/v2/tournament-rounds/937420/standings/paginated/?page=1&page_size=10\")",
+      "Bash(curl -s \"https://api.cloudflare.ravensburgerplay.com/hydraproxy/api/v2/tournament-rounds/937420/standings/paginated/?page=1&page_size=10\")",
+      "Bash(python3 -m json.tool)",
+      "Bash(curl -si \"https://api.cloudflare.ravensburgerplay.com/hydraproxy/api/v2/events/515727/\")",
+      "Bash(python3 server.py)",
+      "Bash(curl -s http://localhost:8080/)",
+      "Bash(curl -s \"http://localhost:8080/api/events/515727/\")",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\('name:', d['name']\\); print\\('rounds:', sum\\(len\\(p['rounds']\\) for p in d['tournament_phases']\\)\\)\")",
+      "Bash(curl -s \"http://localhost:8080/api/tournament-rounds/937420/pairings/paginated/?page=1&page_size=20\")",
+      "Bash(curl -si \"https://api.cloudflare.ravensburgerplay.com/hydraproxy/api/v2/tournament-rounds/937420/pairings/paginated/?page=1&page_size=20\")",
+      "Bash(curl -si \"https://api.cloudflare.ravensburgerplay.com/hydraproxy/api/v2/tournament-rounds/937420/pairings/\")",
+      "Bash(curl -si \"https://api.cloudflare.ravensburgerplay.com/hydraproxy/api/v2/tournament-rounds/937420/matches/\")",
+      "Bash(curl -si \"https://api.cloudflare.ravensburgerplay.com/hydraproxy/api/v2/tournament-rounds/937420/matches/paginated/?page=1&page_size=20\")",
+      "Bash(curl -s \"http://localhost:8080/api/tournament-rounds/935334/matches/paginated/?page=1&page_size=20\")",
+      "Bash(python3 -c ' *)"
+    ]
+  }
+}
