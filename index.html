@@ -916,9 +916,15 @@ body {
 
 <script>
 // ── API ──────────────────────────────────────────
+// Derive base from current URL so the app works under any subpath (e.g. /pactometro/)
+const _base = (() => {
+  const p = window.location.pathname;
+  return p.endsWith('/') ? p : p.slice(0, p.lastIndexOf('/') + 1);
+})();
+
 const api = (path, params = {}) => {
   const qs = new URLSearchParams(params).toString();
-  return fetch(`/api${path}${qs ? '?' + qs : ''}`)
+  return fetch(`${_base}api${path}${qs ? '?' + qs : ''}`)
     .then(r => { if (!r.ok) throw new Error(`${r.status} ${path}`); return r.json(); });
 };
 
@@ -1395,7 +1401,8 @@ function projectRank(pid, projPts, myOMW, allStandings, myRemaining, othersRemai
     const omw = p.opponent_match_win_percentage ?? 0;
     if (P > myCeiling)                                              defAbove++;
     if (P > projPts || (P === projPts && omw > myOMW))             mayAbove++;
-    if (P + othersRemaining * 3 > projPts)                         absAbove++;
+    // >= not >: a player who ends tied with me in pts could rank above via tiebreakers
+    if (P + othersRemaining * 3 >= projPts)                        absAbove++;
   }
   return { best: defAbove + 1, worst: mayAbove + 1, absoluteWorst: absAbove + 1 };
 }
@@ -1462,15 +1469,20 @@ function renderSimulation(pid) {
   const myRemaining     = Math.max(0, totalSwiss - round.round_number - 1);
   const othersRemaining = Math.max(0, totalSwiss - round.round_number);
 
+  // For a DRAW, my OMW% decreases: draw opponent also draws, dragging their win rate down,
+  // which in turn pulls my OMW% down. Formula: currentOMW * R*(R+2)/(R+1)²
+  const R = round.round_number;
+  const myOMW_draw = myOMW * R * (R + 2) / ((R + 1) * (R + 1));
+
   const scenarios = [
-    { label: 'WIN',  delta: 3, cls: 'win'  },
-    { label: 'DRAW', delta: 1, cls: 'draw' },
-    { label: 'LOSS', delta: 0, cls: 'loss' },
+    { label: 'WIN',  delta: 3, cls: 'win',  scenarioOMW: myOMW      },
+    { label: 'DRAW', delta: 1, cls: 'draw', scenarioOMW: myOMW_draw },
+    { label: 'LOSS', delta: 0, cls: 'loss', scenarioOMW: myOMW      },
   ];
 
-  $('sim-rows').innerHTML = scenarios.map(({ label, delta, cls }) => {
+  $('sim-rows').innerHTML = scenarios.map(({ label, delta, cls, scenarioOMW }) => {
     const projPts                              = currentPts + delta;
-    const { best, worst, absoluteWorst }       = projectRank(pid, projPts, myOMW, standings, myRemaining, othersRemaining);
+    const { best, worst, absoluteWorst }       = projectRank(pid, projPts, scenarioOMW, standings, myRemaining, othersRemaining);
 
     let verdictHtml = '';
     if (cut) {
@@ -1499,7 +1511,7 @@ function renderSimulation(pid) {
     ? ` · ${myRemaining} round${myRemaining > 1 ? 's' : ''} remaining after this`
     : ' · Final Swiss round';
   $('sim-note').textContent =
-    `R${round.round_number} standings · ${standings.length} players${cutLine}${roundsCtx} · OMW% tiebreaker uses current value`;
+    `R${round.round_number} standings · ${standings.length} players${cutLine}${roundsCtx} · DRAW reduces OMW% estimate · tied pts count as threats for LOCKED`;
 }
 
 // Click opponent name → jump to that player
