@@ -784,6 +784,7 @@ body {
       <input class="url-input" id="url-input" type="text"
              placeholder="https://tcg.ravensburgerplay.com/events/515727" />
       <button class="btn" id="load-btn" type="submit">Load</button>
+      <button class="btn" id="refresh-btn" type="button" title="Reload live data" style="background:var(--card);color:var(--t2);border:1px solid var(--b2);display:none">↺</button>
     </form>
     <button class="menu-btn" id="menu-btn" aria-label="Open player roster">
       <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round">
@@ -1091,6 +1092,7 @@ async function loadEvent(url, restorePlayerId = null, { fromCache = false } = {}
 function renderBanner() {
   const ev = S.event;
   $('banner').classList.add('on');
+  $('refresh-btn').style.display = '';
   $('b-name').textContent = ev.name;
 
   const items = [
@@ -1384,15 +1386,16 @@ function renderHistory(history) {
 }
 
 // ── SIMULATION ───────────────────────────────────
-function projectRank(pid, projPts, allStandings, myRemaining, othersRemaining) {
+function projectRank(pid, projPts, myOMW, allStandings, myRemaining, othersRemaining) {
   const myCeiling = projPts + myRemaining * 3;
   let defAbove = 0, mayAbove = 0, absAbove = 0;
   for (const p of allStandings) {
     if (p.id === pid) continue;
-    const P = p.points;
-    if (P > myCeiling)                     defAbove++;
-    if (P > projPts)                       mayAbove++;
-    if (P + othersRemaining * 3 > projPts) absAbove++;
+    const P   = p.points;
+    const omw = p.opponent_match_win_percentage ?? 0;
+    if (P > myCeiling)                                              defAbove++;
+    if (P > projPts || (P === projPts && omw > myOMW))             mayAbove++;
+    if (P + othersRemaining * 3 > projPts)                         absAbove++;
   }
   return { best: defAbove + 1, worst: mayAbove + 1, absoluteWorst: absAbove + 1 };
 }
@@ -1434,6 +1437,7 @@ function renderSimulation(pid) {
 
   const cut        = getTopCut();
   const currentPts = me.points;
+  const myOMW      = me.opponent_match_win_percentage ?? 0;
   const isElim     = round.phase_type !== 'SWISS';
 
   // Figure out label: what round are we projecting INTO?
@@ -1466,7 +1470,7 @@ function renderSimulation(pid) {
 
   $('sim-rows').innerHTML = scenarios.map(({ label, delta, cls }) => {
     const projPts                              = currentPts + delta;
-    const { best, worst, absoluteWorst }       = projectRank(pid, projPts, standings, myRemaining, othersRemaining);
+    const { best, worst, absoluteWorst }       = projectRank(pid, projPts, myOMW, standings, myRemaining, othersRemaining);
 
     let verdictHtml = '';
     if (cut) {
@@ -1495,7 +1499,7 @@ function renderSimulation(pid) {
     ? ` · ${myRemaining} round${myRemaining > 1 ? 's' : ''} remaining after this`
     : ' · Final Swiss round';
   $('sim-note').textContent =
-    `R${round.round_number} standings · ${standings.length} players${cutLine}${roundsCtx} · Tiebreakers not modelled`;
+    `R${round.round_number} standings · ${standings.length} players${cutLine}${roundsCtx} · OMW% tiebreaker uses current value`;
 }
 
 // Click opponent name → jump to that player
@@ -1525,6 +1529,11 @@ $('form').addEventListener('submit', e => {
   e.preventDefault();
   const url = $('url-input').value.trim();
   if (url) loadEvent(url);
+});
+
+$('refresh-btn').addEventListener('click', () => {
+  const url = $('url-input').value.trim();
+  if (url) loadEvent(url, S.activeId);   // re-fetch live, keep selected player
 });
 
 // ── TOP CUT CONTROLS ─────────────────────────────
