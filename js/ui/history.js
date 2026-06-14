@@ -7,7 +7,9 @@ export function renderHistory(history) {
     const lbl = h.result === 'W' ? 'WIN' : h.result === 'L' ? 'LOSS' : h.result === 'D' ? 'DRAW' : '—';
 
     let badgeHtml;
-    if (h.live && !h.result) {
+    if (h.live && h.dropped) {
+      badgeHtml = `<span class="badge dropped-badge">DROPPED</span>`;
+    } else if (h.live && !h.result) {
       badgeHtml = `<span class="badge live-badge">LIVE</span>`;
     } else {
       const badgeText = h.score ? `${lbl} ${h.score}` : lbl;
@@ -19,7 +21,7 @@ export function renderHistory(history) {
       : `<span class="rh-opp none">—</span>`;
 
     return `
-      <div class="rh-row ${rc}${h.live ? ' live-row' : ''}">
+      <div class="rh-row ${rc}${h.live && !h.dropped ? ' live-row' : ''}">
         <div class="rh-num">R${h.round_number}</div>
         ${oppHtml}
         <div>${badgeHtml}</div>

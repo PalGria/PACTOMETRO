@@ -4,16 +4,35 @@ import { openRoster, closeRoster } from './controllers/rosterController.js';
 import { renderStandings } from './ui/standings.js';
 import { renderSimulation } from './ui/simulation.js';
 import { renderRoundSim } from './ui/roundSim.js';
+import { renderOppPool } from './ui/oppPool.js';
 import S from './state.js';
 import { $ } from './utils.js';
 
 const _board = () => document.getElementById('board');
 
+// ── THEME ─────────────────────────────────────────
+function _applyTheme(theme) {
+  document.documentElement.dataset.theme = theme === 'light' ? 'light' : '';
+  $('theme-btn').textContent = theme === 'light' ? '◑' : '☀';
+  try { localStorage.setItem('pm_theme', theme); } catch(e) {}
+}
+_applyTheme(localStorage.getItem('pm_theme') || 'dark');
+// defer until DOM ready
+document.addEventListener('DOMContentLoaded', () => {
+  $('theme-btn').addEventListener('click', () => {
+    _applyTheme(document.documentElement.dataset.theme === 'light' ? 'dark' : 'light');
+  });
+});
+
 function switchBoardTab(mode) {
-  const isRound = mode === 'round';
-  $('btab-analysis').classList.toggle('on', !isRound);
-  $('btab-round').classList.toggle('on',    isRound);
-  _board()?.classList.toggle('round-mode',  isRound);
+  $('btab-analysis').classList.toggle('on', mode === 'analysis');
+  $('btab-round').classList.toggle('on',    mode === 'round');
+  $('btab-pool').classList.toggle('on',     mode === 'pool');
+  const board = _board();
+  if (board) {
+    board.classList.toggle('round-mode', mode === 'round');
+    board.classList.toggle('pool-mode',  mode === 'pool');
+  }
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -55,6 +74,7 @@ $('wc-form').addEventListener('submit', e => { e.preventDefault(); const url = $
 // Board tabs
 $('btab-analysis').addEventListener('click', () => switchBoardTab('analysis'));
 $('btab-round').addEventListener('click', () => { switchBoardTab('round'); renderRoundSim(); });
+$('btab-pool').addEventListener('click', () => { switchBoardTab('pool'); renderOppPool(); });
 
 // Top cut controls
 $('no-cut-cb').addEventListener('change', () => { $('top-cut-input').disabled = $('no-cut-cb').checked; saveTopCut(); renderStandings(); if (S.activeId) renderSimulation(S.activeId); });

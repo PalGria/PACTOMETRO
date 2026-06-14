@@ -27,11 +27,20 @@ export function renderChart(history) {
     return node;
   };
 
+  // Read current theme colours from CSS variables
+  const cs      = getComputedStyle(document.documentElement);
+  const cPurple = cs.getPropertyValue('--purple').trim();
+  const cGreen  = cs.getPropertyValue('--green').trim();
+  const cRed    = cs.getPropertyValue('--red').trim();
+  const cYellow = cs.getPropertyValue('--yellow').trim();
+  const cBg     = cs.getPropertyValue('--bg').trim();
+  const cT3     = cs.getPropertyValue('--t3').trim();
+
   // Defs: gradient
   const defs = el('defs', {});
   const grad = el('linearGradient', { id: 'og', x1: '0', y1: '0', x2: '0', y2: '1' });
-  const s1 = el('stop', { offset: '0%',   'stop-color': '#a78bfa', 'stop-opacity': '.25' });
-  const s2 = el('stop', { offset: '100%', 'stop-color': '#a78bfa', 'stop-opacity': '0' });
+  const s1 = el('stop', { offset: '0%',   'stop-color': cPurple, 'stop-opacity': '.22' });
+  const s2 = el('stop', { offset: '100%', 'stop-color': cPurple, 'stop-opacity': '0' });
   grad.append(s1, s2); defs.append(grad); svg.append(defs);
 
   // Grid lines
@@ -39,9 +48,9 @@ export function renderChart(history) {
     if (v < minV || v > maxV) return;
     const y = yS(v);
     svg.append(el('line', { x1: PAD.left, x2: W - PAD.right, y1: y, y2: y,
-      stroke: 'rgba(148,163,184,.08)', 'stroke-width': '1', 'stroke-dasharray': '4 4' }));
+      stroke: cT3, 'stroke-opacity': '.2', 'stroke-width': '1', 'stroke-dasharray': '4 4' }));
     const t = el('text', { x: PAD.left - 5, y: y + 4,
-      'text-anchor': 'end', fill: 'rgba(148,163,184,.35)',
+      'text-anchor': 'end', fill: cT3, 'fill-opacity': '.5',
       'font-size': '9', 'font-family': 'JetBrains Mono, monospace' });
     t.textContent = Math.round(v * 100) + '%';
     svg.append(t);
@@ -62,19 +71,19 @@ export function renderChart(history) {
     // Line
     svg.append(el('polyline', {
       points: pointsStr,
-      fill: 'none', stroke: '#a78bfa', 'stroke-width': '2', 'stroke-linejoin': 'round',
+      fill: 'none', stroke: cPurple, 'stroke-width': '2', 'stroke-linejoin': 'round',
     }));
   }
 
   // Dots + labels
   pts.forEach((h, i) => {
     const cx = xS(i), cy = yS(h.omw);
-    const dotColor = h.result === 'W' ? '#4ade80' : h.result === 'L' ? '#f87171' : h.result === 'D' ? '#fbbf24' : '#a78bfa';
+    const dotColor = h.result === 'W' ? cGreen : h.result === 'L' ? cRed : h.result === 'D' ? cYellow : cPurple;
 
-    svg.append(el('circle', { cx, cy, r: '4.5', fill: dotColor, stroke: '#0b0e16', 'stroke-width': '1.5' }));
+    svg.append(el('circle', { cx, cy, r: '4.5', fill: dotColor, stroke: cBg, 'stroke-width': '1.5' }));
 
     const label = el('text', { x: cx, y: PAD.top + iH + 16,
-      'text-anchor': 'middle', fill: 'rgba(148,163,184,.45)',
+      'text-anchor': 'middle', fill: cT3, 'fill-opacity': '.55',
       'font-size': '9', 'font-family': 'JetBrains Mono, monospace' });
     label.textContent = 'R' + h.round_number;
     svg.append(label);

@@ -291,6 +291,11 @@
   border: 1px solid rgba(251,191,36,.3);
   animation: pulse-live 1.2s ease-in-out infinite;
 }
+.badge.dropped-badge {
+  background: transparent;
+  color: var(--t3);
+  border: 1px solid var(--b2);
+}
 @keyframes pulse-live {
   0%, 100% { opacity: 1; }
   50%       { opacity: .45; }
@@ -352,3 +357,11 @@
 ::-webkit-scrollbar { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--b2); border-radius: 2px; }
+
+/* ── LIGHT-MODE OVERRIDES (hardcoded values) ─────── */
+[data-theme="light"] .player-head {
+  background: linear-gradient(135deg, rgba(28,95,184,.07) 0%, transparent 60%);
+}
+[data-theme="light"] .sim-verdict.lock {
+  background: rgba(28,95,184,.12);
+}

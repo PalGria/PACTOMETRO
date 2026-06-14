@@ -10,6 +10,7 @@ import { renderDetail, clearDetail } from '../ui/detail.js';
 import { openRoster, closeRoster } from './rosterController.js';
 import { resetTracker } from '../ui/tracker.js';
 import { resetRoundSim } from '../ui/roundSim.js';
+import { resetOppPool, renderOppPool } from '../ui/oppPool.js';
 
 // ── LOAD EVENT ───────────────────────────────────
 export async function loadEvent(url, restorePlayerId = null, { fromCache = false } = {}) {
@@ -117,6 +118,9 @@ export function selectPlayer(pid) {
     tr.classList.toggle('active', parseInt(tr.dataset.id) === pid)
   );
   renderDetail(pid);
+  if (document.getElementById('board')?.classList.contains('pool-mode')) {
+    renderOppPool();
+  }
   closeRoster();
 }
 
@@ -128,10 +132,14 @@ export function exitEvent() {
   S.viewRound = null; S.simRound = null; S.activeId = null;
   resetTracker();
   resetRoundSim();
+  resetOppPool();
   $('board-tabs').style.display = 'none';
-  document.getElementById('board')?.classList.remove('round-mode');
+  const board = document.getElementById('board');
+  board?.classList.remove('round-mode');
+  board?.classList.remove('pool-mode');
   $('btab-analysis')?.classList.add('on');
   $('btab-round')?.classList.remove('on');
+  $('btab-pool')?.classList.remove('on');
   $('url-input').value        = '';
   $('roster-url-input').value = '';
   $('banner').classList.remove('on');

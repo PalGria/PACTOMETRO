@@ -4,9 +4,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>PACTOMETRO</title>
+<link rel="icon" type="image/svg+xml" href="assets/logo.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/base.css">
+<script>try{if(localStorage.getItem('pm_theme')==='light')document.documentElement.dataset.theme='light'}catch(e){}</script>
 <link rel="stylesheet" href="css/layout.css">
 <link rel="stylesheet" href="css/standings.css">
 <link rel="stylesheet" href="css/detail.css">
@@ -27,6 +29,7 @@
       <button class="btn" id="refresh-btn" type="button" title="Reload live data" style="background:var(--card);color:var(--t2);border:1px solid var(--b2);display:none">↺</button>
       <button class="btn" id="exit-btn" type="button" title="Exit event" style="background:var(--card);color:var(--t2);border:1px solid var(--b2);display:none">✕</button>
     </form>
+    <button class="theme-btn" id="theme-btn" title="Toggle day / night"></button>
     <button class="menu-btn" id="menu-btn" aria-label="Open player roster">
       <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round">
         <path d="M1.5 3.5h11M1.5 7h11M1.5 10.5h11"/>
@@ -46,6 +49,7 @@
   <div class="board-tabs" id="board-tabs" style="display:none">
     <button class="btab on" id="btab-analysis">Analysis</button>
     <button class="btab"    id="btab-round">Round Sim</button>
+    <button class="btab"    id="btab-pool">Opp Pool</button>
   </div>
 
   <!-- Board -->
@@ -185,6 +189,10 @@
         </div>
 
       </div>
+
+      <!-- Opponent Pool (shown in pool-mode, replaces d-content) -->
+      <div id="d-pool-content"></div>
+
     </section>
 
     <!-- Loading screen -->

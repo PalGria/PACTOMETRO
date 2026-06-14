@@ -16,6 +16,9 @@ export function buildHistory(pid) {
     const roundMatches = S.matches[r.id] || [];
     const match = roundMatches.find(m => m.players && m.players.includes(pid));
 
+    // Live round with no match means the player wasn't paired — they dropped before pairing
+    if (isLive && !match) continue;
+
     let result = null, score = null, opponent = null, opponentId = null, isBye = false;
 
     if (match) {
@@ -42,11 +45,32 @@ export function buildHistory(pid) {
       }
     }
 
+    // Detect drop: player is in pairings but hasn't played yet — check registration status
+    let dropped = false;
+    if (isLive && !result) {
+      // 1. Check the match's own relationship data (most current)
+      const myRel = (match?.player_match_relationships || []).find(rel => rel.player.id === pid);
+      const relStatus = myRel?.user_event_status?.registration_status;
+      if (relStatus && relStatus !== 'COMPLETE') {
+        dropped = true;
+      } else {
+        // 2. Fall back to last completed-round standings
+        const lastStRound = S.rounds.filter(r => r.standings_status === 'GENERATED').at(-1);
+        if (lastStRound) {
+          const prevSt = (S.standings[lastStRound.id] || []).find(p => p.id === pid);
+          if (prevSt && prevSt.user_event_status?.registration_status !== 'COMPLETE') {
+            dropped = true;
+          }
+        }
+      }
+    }
+
     history.push({
       round_number: r.round_number,
       phase_name:   r.phase_name,
       result, score, opponent, opponentId, isBye,
-      live:   isLive,
+      live:    isLive,
+      dropped,
       rank:   st?.rank   ?? null,
       record: st?.record ?? null,
       points: st?.points ?? null,

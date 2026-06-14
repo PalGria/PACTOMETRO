@@ -10,6 +10,25 @@
   backdrop-filter: blur(10px);
   z-index: 50;
 }
+[data-theme="light"] .header {
+  background: rgba(244,245,248,.97);
+  box-shadow: 0 1px 0 var(--b2);
+}
+
+/* ── THEME TOGGLE BUTTON ────────────────────────── */
+.theme-btn {
+  background: transparent;
+  border: 1px solid var(--b2);
+  border-radius: 6px;
+  color: var(--t2);
+  padding: .35rem .5rem;
+  font-size: .9rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: border-color .15s, color .15s;
+  flex-shrink: 0;
+}
+.theme-btn:hover { border-color: var(--blue); color: var(--blue); }
 
 .logo {
   font-size: 1rem;
@@ -72,6 +91,7 @@
   display: none;
 }
 .banner.on { display: block; }
+[data-theme="light"] .banner { background: linear-gradient(135deg, rgba(28,95,184,.06) 0%, transparent 55%); }
 
 .banner-name {
   font-size: 1.15rem;
@@ -340,4 +360,12 @@
 
   .player-head { flex-wrap: wrap; }
   .stat-row { gap: .9rem; }
+}
+
+/* ── LIGHT-MODE OVERRIDES (hardcoded values) ─────── */
+[data-theme="light"] .wc-input {
+  border-color: rgba(28,95,184,.3);
+}
+[data-theme="light"] .wc-input:focus {
+  box-shadow: 0 0 0 4px rgba(28,95,184,.12);
 }

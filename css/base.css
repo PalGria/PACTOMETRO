@@ -1,4 +1,4 @@
-/* ── TOKENS ─────────────────────────────────────── */
+/* ── TOKENS — dark (default) ─────────────────────── */
 :root {
   --bg:      #0b0e16;
   --surface: #111722;
@@ -16,6 +16,25 @@
   --orange:  #fb923c;
 }
 
+/* ── TOKENS — light / whiteboard ─────────────────── */
+[data-theme="light"] {
+  --bg:      #f4f5f8;
+  --surface: #e8eaf0;
+  --card:    #ffffff;
+  --b:       rgba(20,30,58,.09);
+  --b2:      rgba(20,30,58,.18);
+  --t1:      #1a2233;
+  --t2:      #4a5870;
+  --t3:      #8a9ab2;
+  /* marker-ink accent colours */
+  --blue:    #1c5fa8;
+  --green:   #16803d;
+  --red:     #cc2020;
+  --yellow:  #ca8a04;
+  --purple:  #6d28d9;
+  --orange:  #c2410c;
+}
+
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 html, body {
@@ -31,6 +50,13 @@ html, body {
 body {
   background-image: radial-gradient(circle, rgba(148,163,184,.06) 1px, transparent 1px);
   background-size: 28px 28px;
+}
+
+/* no texture in light mode */
+[data-theme="light"] body,
+[data-theme="light"] #load-screen,
+[data-theme="light"] #welcome {
+  background-image: none;
 }
 
 /* ── LOADING BAR ────────────────────────────────── */
