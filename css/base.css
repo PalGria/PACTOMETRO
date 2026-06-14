@@ -1,0 +1,86 @@
+/* ── TOKENS ─────────────────────────────────────── */
+:root {
+  --bg:      #0b0e16;
+  --surface: #111722;
+  --card:    #181f30;
+  --b:       rgba(148,163,184,.07);
+  --b2:      rgba(148,163,184,.15);
+  --t1:      #e2e8f0;
+  --t2:      #94a3b8;
+  --t3:      #475569;
+  --blue:    #38bdf8;
+  --green:   #4ade80;
+  --red:     #f87171;
+  --yellow:  #fbbf24;
+  --purple:  #a78bfa;
+  --orange:  #fb923c;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  height: 100%;
+  overflow: hidden;
+  font-family: 'Inter', system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--t1);
+  font-size: 14px;
+}
+
+/* dot-grid board texture */
+body {
+  background-image: radial-gradient(circle, rgba(148,163,184,.06) 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+
+/* ── LOADING BAR ────────────────────────────────── */
+#loader {
+  position: fixed; top: 0; left: 0; right: 0; height: 2px;
+  background: linear-gradient(90deg, var(--blue), var(--purple), var(--blue));
+  background-size: 200% 100%;
+  animation: shimmer 1.4s linear infinite;
+  display: none; z-index: 999;
+}
+#loader.on { display: block; }
+@keyframes shimmer { to { background-position: -200% 0; } }
+
+/* ── LOADING SCREEN ─────────────────────────────── */
+#load-screen {
+  position: absolute;
+  inset: 0;
+  z-index: 55;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.25rem;
+  background: var(--bg);
+  background-image: radial-gradient(circle, rgba(148,163,184,.06) 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+#load-screen.hidden { display: none; }
+.ls-logo {
+  font-size: 1.15rem;
+  font-weight: 900;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--blue);
+}
+.ls-logo em { color: var(--t3); font-style: normal; }
+.ls-spinner {
+  width: 26px; height: 26px;
+  border: 2px solid var(--b2);
+  border-top-color: var(--blue);
+  border-radius: 50%;
+  animation: spin .75s linear infinite;
+}
+.ls-text { font-size: .72rem; color: var(--t3); letter-spacing: .06em; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── SHELL ──────────────────────────────────────── */
+.shell {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  height: 100dvh; /* iOS Safari: exclude browser chrome */
+}
