@@ -53,11 +53,45 @@ body {
 #loader.on { display: block; }
 @keyframes shimmer { to { background-position: -200% 0; } }
 
+/* ── LOADING SCREEN ─────────────────────────────── */
+#load-screen {
+  position: absolute;
+  inset: 0;
+  z-index: 55;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.25rem;
+  background: var(--bg);
+  background-image: radial-gradient(circle, rgba(148,163,184,.06) 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+#load-screen.hidden { display: none; }
+.ls-logo {
+  font-size: 1.15rem;
+  font-weight: 900;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--blue);
+}
+.ls-logo em { color: var(--t3); font-style: normal; }
+.ls-spinner {
+  width: 26px; height: 26px;
+  border: 2px solid var(--b2);
+  border-top-color: var(--blue);
+  border-radius: 50%;
+  animation: spin .75s linear infinite;
+}
+.ls-text { font-size: .72rem; color: var(--t3); letter-spacing: .06em; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
 /* ── SHELL ──────────────────────────────────────── */
 .shell {
   display: flex;
   flex-direction: column;
   height: 100vh;
+  height: 100dvh; /* iOS Safari: exclude browser chrome */
 }
 
 /* ── HEADER ─────────────────────────────────────── */
@@ -863,6 +897,7 @@ body {
   transition: border-color .15s, color .15s;
 }
 .menu-btn:hover { border-color: var(--blue); color: var(--blue); }
+.menu-btn.has-event { border-color: var(--blue); color: var(--blue); }
 
 .close-drawer-btn {
   display: none;
@@ -878,6 +913,23 @@ body {
 }
 .close-drawer-btn:hover { color: var(--t1); }
 
+/* ── ROSTER EVENT BAR (mobile only) ─────────────── */
+.roster-event-bar {
+  display: none; /* shown only on mobile */
+  padding: .75rem 1rem;
+  border-bottom: 1px solid var(--b2);
+  flex-shrink: 0;
+  gap: .45rem;
+  flex-direction: column;
+}
+.roster-url-row {
+  display: flex;
+  gap: .45rem;
+  align-items: center;
+}
+.roster-url-row .url-input { font-size: .68rem; min-width: 0; }
+.roster-action-row { display: flex; gap: .45rem; }
+
 /* ── DRAWER OVERLAY ─────────────────────────────── */
 .drawer-overlay {
   display: none;
@@ -892,18 +944,18 @@ body {
 
 /* ── RESPONSIVE ─────────────────────────────────── */
 @media (max-width: 760px) {
-  /* Single row that fills the board — without this, #welcome (position:absolute)
-     auto-places itself in row 1 and pushes .detail to row 2, outside the clip. */
+  /* .standings is position:fixed (out of flow) so the board only needs to
+     show .detail. Use flex column so .detail can reliably fill remaining height. */
   .board {
-    grid-template-columns: 1fr;
-    grid-template-rows: 1fr;
+    display: flex;
+    flex-direction: column;
+    overflow-y: visible; /* let .detail scroll internally */
   }
 
-  /* Explicitly anchor detail to row 1 / col 1 so it always fills the board */
   .detail {
-    grid-column: 1;
-    grid-row: 1;
-    min-height: 0;
+    flex: 1;
+    min-height: 0; /* prevent flex blowout */
+    overflow-y: auto;
   }
 
   .standings {
@@ -924,7 +976,12 @@ body {
   .menu-btn { display: flex; }
   .close-drawer-btn { display: block; }
 
-  .url-form { max-width: none; }
+  /* Move event controls into the roster panel on mobile */
+  .url-form { display: none; }
+  .roster-event-bar { display: flex; }
+
+  /* Welcome screen not needed on mobile — roster panel handles it */
+  #welcome { display: none !important; }
 
   .player-head { flex-wrap: wrap; }
   .stat-row { gap: .9rem; }
@@ -966,6 +1023,22 @@ body {
 
     <!-- Standings -->
     <aside class="standings" id="standings-panel">
+
+      <!-- Event URL bar (mobile only) -->
+      <div class="roster-event-bar" id="roster-event-bar">
+        <div class="roster-url-row">
+          <input class="url-input" id="roster-url-input" type="text"
+                 placeholder="Paste event URL…" autocomplete="off" spellcheck="false" />
+          <button class="btn" id="roster-load-btn" type="button">Load</button>
+        </div>
+        <div class="roster-action-row" id="roster-action-row" style="display:none">
+          <button class="btn" id="roster-refresh-btn" type="button"
+                  style="background:var(--card);color:var(--t2);border:1px solid var(--b2);flex:1">↺ Refresh</button>
+          <button class="btn" id="roster-exit-btn" type="button"
+                  style="background:var(--card);color:var(--t2);border:1px solid var(--b2);flex:1">✕ Exit</button>
+        </div>
+      </div>
+
       <div class="panel-bar">
         <span class="panel-label">Standings</span>
         <div class="round-tabs" id="round-tabs"></div>
@@ -1082,6 +1155,13 @@ body {
       </div>
     </section>
 
+    <!-- Loading screen -->
+    <div id="load-screen" class="hidden">
+      <div class="ls-logo">Pacto<em>metro</em></div>
+      <div class="ls-spinner"></div>
+      <div class="ls-text" id="ls-text">Fetching event data…</div>
+    </div>
+
     <!-- Welcome overlay (shown when no event is loaded) -->
     <div id="welcome" class="hidden">
       <div class="wc">
@@ -1133,7 +1213,12 @@ const S = {
 const $  = id => document.getElementById(id);
 const fmtDate = iso => new Date(iso).toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' });
 const fmtOmw  = v  => v != null ? (v * 100).toFixed(1) + '%' : '—';
-const loader  = on  => { $('loader').classList.toggle('on', on); $('load-btn').disabled = on; };
+const loader  = on  => {
+  $('loader').classList.toggle('on', on);
+  $('load-btn').disabled = on;
+  $('roster-load-btn').disabled = on;
+  $('load-screen').classList.toggle('hidden', !on);
+};
 
 function playerColor(id) {
   const palette = ['#38bdf8','#4ade80','#f87171','#fbbf24','#a78bfa','#fb923c','#e879f9','#34d399','#f472b6','#60a5fa'];
@@ -1214,7 +1299,12 @@ async function loadEvent(url, restorePlayerId = null, { fromCache = false } = {}
       renderBanner();
       renderRoundTabs();
       renderStandings();
-      if (restorePlayerId) selectPlayer(restorePlayerId); else clearDetail();
+      if (restorePlayerId) {
+        selectPlayer(restorePlayerId);
+      } else {
+        clearDetail();
+        if (window.innerWidth <= 760) openRoster();
+      }
       return;
     }
   }
@@ -1282,7 +1372,7 @@ async function loadEvent(url, restorePlayerId = null, { fromCache = false } = {}
   } catch(e) {
     alert('Failed to load: ' + e.message);
     console.error(e);
-    if (!S.event) showWelcome();
+    if (!S.event) { if (window.innerWidth <= 760) openRoster(); else showWelcome(); }
   } finally {
     loader(false);
   }
@@ -1294,6 +1384,9 @@ function renderBanner() {
   $('banner').classList.add('on');
   $('refresh-btn').style.display = '';
   $('exit-btn').style.display    = '';
+  $('menu-btn').classList.add('has-event');
+  $('roster-action-row').style.display = '';
+  if (S.event) $('roster-url-input').value = `https://tcg.ravensburgerplay.com/events/${S.event.id}`;
   $('b-name').textContent = ev.name;
 
   const items = [
@@ -1934,24 +2027,49 @@ $('refresh-btn').addEventListener('click', () => {
   if (url) loadEvent(url, S.activeId);
 });
 
-$('exit-btn').addEventListener('click', () => {
+// ── ROSTER FORM (mobile) ─────────────────────────
+$('roster-load-btn').addEventListener('click', () => {
+  const url = $('roster-url-input').value.trim();
+  if (!url) return;
+  $('url-input').value = url;
+  closeRoster();
+  loadEvent(url);
+});
+
+$('roster-refresh-btn').addEventListener('click', () => {
+  closeRoster();
+  const url = $('url-input').value || localStorage.getItem('pm_url') || '';
+  if (url) loadEvent(url, S.activeId);
+});
+
+$('roster-exit-btn').addEventListener('click', () => {
+  closeRoster();
+  exitEvent();
+});
+
+function exitEvent() {
   localStorage.removeItem('pm_url');
   localStorage.removeItem('pm_player');
   S.event = null; S.rounds = []; S.standings = {}; S.matches = {};
   S.viewRound = null; S.simRound = null; S.activeId = null;
   _trackerRound = null;
-  $('url-input').value = '';
+  $('url-input').value        = '';
+  $('roster-url-input').value = '';
   $('banner').classList.remove('on');
-  $('refresh-btn').style.display = 'none';
-  $('exit-btn').style.display    = 'none';
-  $('round-tabs').innerHTML      = '';
-  $('s-body').innerHTML          = '';
-  $('s-table').style.display     = 'none';
-  $('s-empty').textContent       = 'Load an event to see standings';
-  $('s-empty').style.display     = '';
+  $('refresh-btn').style.display    = 'none';
+  $('exit-btn').style.display       = 'none';
+  $('roster-action-row').style.display = 'none';
+  $('menu-btn').classList.remove('has-event');
+  $('round-tabs').innerHTML = '';
+  $('s-body').innerHTML     = '';
+  $('s-table').style.display  = 'none';
+  $('s-empty').textContent    = 'Load an event to see standings';
+  $('s-empty').style.display  = '';
   clearDetail();
-  showWelcome();
-});
+  if (window.innerWidth <= 760) openRoster(); else showWelcome();
+}
+
+$('exit-btn').addEventListener('click', exitEvent);
 
 // ── TOP CUT CONTROLS ─────────────────────────────
 $('no-cut-cb').addEventListener('change', () => {
@@ -1973,11 +2091,12 @@ window.addEventListener('DOMContentLoaded', () => {
   const savedUrl    = localStorage.getItem('pm_url');
   const savedPlayer = localStorage.getItem('pm_player');
   if (savedUrl) {
-    $('url-input').value = savedUrl;
+    $('url-input').value        = savedUrl;
+    $('roster-url-input').value = savedUrl;
     hideWelcome();
     loadEvent(savedUrl, savedPlayer ? parseInt(savedPlayer) : null, { fromCache: true });
   } else {
-    showWelcome();
+    if (window.innerWidth <= 760) openRoster(); else showWelcome();
   }
 });
 </script>
