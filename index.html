@@ -188,6 +188,7 @@ body {
   display: grid;
   grid-template-columns: 320px 1fr;
   overflow: hidden;
+  position: relative;
 }
 
 /* ── STANDINGS PANEL ────────────────────────────── */
@@ -460,6 +461,16 @@ body {
   font-size: .7rem;
   font-weight: 800;
   letter-spacing: .08em;
+  display: flex;
+  flex-direction: column;
+  gap: .05rem;
+}
+.sim-rnum {
+  font-size: .52rem;
+  font-weight: 600;
+  letter-spacing: .06em;
+  color: var(--t3);
+  font-family: 'JetBrains Mono', monospace;
 }
 .sim-row.win  .sim-lbl { color: var(--green); }
 .sim-row.draw .sim-lbl { color: var(--yellow); }
@@ -691,6 +702,142 @@ body {
 .s-table tr.p-row.in-cut:hover { background: rgba(251,191,36,.07); }
 .s-table tr.p-row.in-cut.active { background: rgba(56,189,248,.09); }
 
+/* ── WELCOME OVERLAY ────────────────────────────── */
+#welcome {
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg);
+  background-image: radial-gradient(circle, rgba(148,163,184,.06) 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+#welcome.hidden { display: none; }
+
+.wc {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.1rem;
+  padding: 2.5rem 1.5rem;
+  max-width: 460px;
+  width: 100%;
+}
+
+.wc-logo {
+  font-size: 2.4rem;
+  font-weight: 900;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--blue);
+  user-select: none;
+}
+.wc-logo em { color: var(--t3); font-style: normal; }
+
+.wc-tagline {
+  font-size: .8rem;
+  color: var(--t3);
+  letter-spacing: .04em;
+  margin-top: -.25rem;
+}
+
+@keyframes pulse-border {
+  0%, 100% { border-color: rgba(56,189,248,.3); box-shadow: 0 0 0 0 rgba(56,189,248,0); }
+  50%       { border-color: var(--blue);         box-shadow: 0 0 0 5px rgba(56,189,248,.1); }
+}
+
+.wc-form {
+  display: flex;
+  flex-direction: column;
+  gap: .6rem;
+  width: 100%;
+  margin-top: .35rem;
+}
+
+.wc-input {
+  width: 100%;
+  background: var(--card);
+  border: 1.5px solid rgba(56,189,248,.3);
+  border-radius: 8px;
+  padding: .8rem 1rem;
+  color: var(--t1);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: .8rem;
+  outline: none;
+  animation: pulse-border 2.5s ease-in-out infinite;
+  transition: border-color .18s, box-shadow .18s, animation 0s;
+}
+.wc-input:focus {
+  animation: none;
+  border-color: var(--blue);
+  box-shadow: 0 0 0 4px rgba(56,189,248,.14);
+}
+.wc-input::placeholder { color: var(--t3); }
+
+.wc-btn {
+  width: 100%;
+  padding: .7rem 1rem;
+  font-size: .8rem;
+  letter-spacing: .09em;
+}
+
+.wc-hint {
+  font-size: .72rem;
+  color: var(--t3);
+  text-align: center;
+  line-height: 1.6;
+}
+.wc-domain {
+  color: var(--t2);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: .68rem;
+}
+
+.wc-example {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: .6rem;
+  color: var(--t3);
+  opacity: .55;
+  text-align: center;
+  word-break: break-all;
+  margin-top: -.25rem;
+}
+
+/* ── OPPONENT TRACKER ───────────────────────────── */
+.opp-wrap { padding: 0 1.5rem 2.5rem; }
+
+.opp-hdr {
+  display: grid;
+  grid-template-columns: 34px 1fr 56px 1fr 68px 52px;
+  gap: .5rem;
+  padding: .35rem .5rem .35rem 1rem;
+  font-size: .58rem;
+  font-weight: 700;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--t3);
+  border-bottom: 1px solid var(--b2);
+  margin-bottom: .25rem;
+}
+
+.opp-row {
+  display: grid;
+  grid-template-columns: 34px 1fr 56px 1fr 68px 52px;
+  gap: .5rem;
+  align-items: center;
+  padding: .55rem .5rem .55rem 1rem;
+  border-bottom: 1px solid var(--b);
+  border-left: 3px solid transparent;
+  transition: background .1s;
+}
+.opp-row:hover { background: rgba(148,163,184,.03); }
+.opp-row.win  { border-left-color: var(--green); }
+.opp-row.loss { border-left-color: var(--red); }
+.opp-row.draw { border-left-color: var(--yellow); }
+.opp-row.pending { border-left-color: var(--t3); opacity: .6; }
+
 /* ── SCROLLBAR ──────────────────────────────────── */
 ::-webkit-scrollbar { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
@@ -785,6 +932,7 @@ body {
              placeholder="https://tcg.ravensburgerplay.com/events/515727" />
       <button class="btn" id="load-btn" type="submit">Load</button>
       <button class="btn" id="refresh-btn" type="button" title="Reload live data" style="background:var(--card);color:var(--t2);border:1px solid var(--b2);display:none">↺</button>
+      <button class="btn" id="exit-btn" type="button" title="Exit event" style="background:var(--card);color:var(--t2);border:1px solid var(--b2);display:none">✕</button>
     </form>
     <button class="menu-btn" id="menu-btn" aria-label="Open player roster">
       <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round">
@@ -907,8 +1055,38 @@ body {
           <div id="rh-rows"></div>
         </div>
 
+        <!-- Opponent Tracker -->
+        <div class="section" style="border-top:1px solid var(--b);padding-bottom:.25rem">
+          <div style="display:flex;align-items:center;justify-content:space-between">
+            <div class="section-title" style="margin-bottom:0">Opponent Tracker</div>
+            <div class="round-tabs" id="opp-tabs"></div>
+          </div>
+        </div>
+        <div class="opp-wrap" id="opp-wrap">
+          <div id="opp-hdr-row"></div>
+          <div id="opp-rows"></div>
+        </div>
+
       </div>
     </section>
+
+    <!-- Welcome overlay (shown when no event is loaded) -->
+    <div id="welcome" class="hidden">
+      <div class="wc">
+        <div class="wc-logo">Pacto<em>metro</em></div>
+        <p class="wc-tagline">Disney Lorcana tournament analysis</p>
+        <form class="wc-form" id="wc-form">
+          <input class="wc-input" id="wc-input" type="text"
+                 placeholder="Paste event URL here…" autocomplete="off" spellcheck="false" />
+          <button class="btn wc-btn" type="submit">Load Event</button>
+        </form>
+        <div class="wc-hint">
+          Go to <span class="wc-domain">tcg.ravensburgerplay.com</span>,<br>
+          open any event page, and paste its URL above.
+        </div>
+        <div class="wc-example">e.g. https://tcg.ravensburgerplay.com/events/515727</div>
+      </div>
+    </div>
 
   </div><!-- /board -->
 </div><!-- /shell -->
@@ -1029,8 +1207,10 @@ async function loadEvent(url, restorePlayerId = null, { fromCache = false } = {}
     }
   }
 
+  hideWelcome();
   loader(true);
   S.standings = {}; S.matches = {}; S.rounds = []; S.activeId = null;
+  _trackerRound = null;
 
   try {
     const ev = await api(`/events/${eid}/`);
@@ -1089,6 +1269,7 @@ async function loadEvent(url, restorePlayerId = null, { fromCache = false } = {}
   } catch(e) {
     alert('Failed to load: ' + e.message);
     console.error(e);
+    if (!S.event) showWelcome();
   } finally {
     loader(false);
   }
@@ -1099,6 +1280,7 @@ function renderBanner() {
   const ev = S.event;
   $('banner').classList.add('on');
   $('refresh-btn').style.display = '';
+  $('exit-btn').style.display    = '';
   $('b-name').textContent = ev.name;
 
   const items = [
@@ -1229,6 +1411,7 @@ function renderDetail(pid) {
   renderSimulation(pid);
   renderChart(history);
   renderHistory(history);
+  renderOpponentTracker(pid);
 }
 
 function clearDetail() {
@@ -1370,6 +1553,9 @@ function renderChart(history) {
   });
 }
 
+// ── OPPONENT TRACKER STATE ───────────────────────
+let _trackerRound = null;
+
 // ── RENDER: ROUND HISTORY ────────────────────────
 function renderHistory(history) {
   $('rh-rows').innerHTML = history.map(h => {
@@ -1389,6 +1575,143 @@ function renderHistory(history) {
         <div class="rh-rank">#${h.rank}</div>
       </div>`;
   }).join('');
+}
+
+// ── RENDER: OPPONENT TRACKER ─────────────────────
+function renderOpponentTracker(pid) {
+  const tabsEl   = $('opp-tabs');
+  const hdrEl    = $('opp-hdr-row');
+  const rowsEl   = $('opp-rows');
+  if (!tabsEl || !hdrEl || !rowsEl) return;
+
+  // Build map: round_number → { opponentId, opponentName } for this player's matches
+  const myOpponents = {}; // round_number → opp info
+  for (const r of S.rounds) {
+    if (r.pairings_status !== 'GENERATED') continue;
+    const match = (S.matches[r.id] || []).find(m => m.players?.includes(pid));
+    if (!match || match.match_is_bye) continue;
+    const oppRel = (match.player_match_relationships || []).find(rel => rel.player.id !== pid);
+    if (oppRel) {
+      myOpponents[r.round_number] = {
+        opponentId:   oppRel.player.id,
+        opponentName: oppRel.user_event_status?.best_identifier || oppRel.player?.best_identifier || '?',
+      };
+    }
+  }
+
+  // Rounds with any data
+  const dataRounds = S.rounds.filter(r =>
+    r.standings_status === 'GENERATED' || r.pairings_status === 'GENERATED'
+  );
+  if (!dataRounds.length) { tabsEl.innerHTML = ''; hdrEl.innerHTML = ''; rowsEl.innerHTML = ''; return; }
+
+  // Default to live round, else latest
+  if (!_trackerRound || !dataRounds.find(r => r.id === _trackerRound)) {
+    const live = dataRounds.find(r => r.status === 'IN_PROGRESS');
+    _trackerRound = (live ?? dataRounds.at(-1)).id;
+  }
+
+  // Tabs
+  tabsEl.innerHTML = '';
+  dataRounds.forEach(r => {
+    const btn = document.createElement('button');
+    btn.className = 'rtab' +
+      (r.id === _trackerRound ? ' on' : '') +
+      (r.status === 'IN_PROGRESS' ? ' live' : '');
+    btn.textContent = r.round_number;
+    btn.title = `${r.phase_name} – Round ${r.round_number}`;
+    btn.onclick = () => { _trackerRound = r.id; renderOpponentTracker(pid); };
+    tabsEl.appendChild(btn);
+  });
+
+  const selRound = S.rounds.find(r => r.id === _trackerRound);
+  if (!selRound) return;
+
+  // Prior opponents: faced in rounds BEFORE the selected round
+  const priorOpps = Object.entries(myOpponents)
+    .map(([rn, opp]) => ({ roundNum: parseInt(rn), ...opp }))
+    .filter(o => o.roundNum < selRound.round_number)
+    .sort((a, b) => a.roundNum - b.roundNum);
+
+  hdrEl.innerHTML = `
+    <div class="opp-hdr">
+      <div>Faced</div><div>Opponent</div>
+      <div>R${selRound.round_number}</div>
+      <div>vs</div>
+      <div style="text-align:right">Record</div>
+      <div style="text-align:right">MWP</div>
+    </div>`;
+
+  if (!priorOpps.length) {
+    rowsEl.innerHTML = `<div class="s-empty" style="padding:1.25rem 1rem">No prior opponents — select a later round</div>`;
+    return;
+  }
+
+  const selMatches   = S.matches[_trackerRound] || [];
+  const selStandings = S.standings[_trackerRound] || [];
+
+  rowsEl.innerHTML = priorOpps.map(opp => {
+    const match = selMatches.find(m => m.players?.includes(opp.opponentId));
+    let result = null, vsName = '—', vsId = null;
+
+    if (match) {
+      if (match.match_is_bye) {
+        result = 'BYE';
+      } else if (match.match_is_intentional_draw || match.match_is_unintentional_draw) {
+        result = 'D';
+      } else if (match.winning_player === opp.opponentId) {
+        result = 'W';
+      } else if (match.winning_player !== null) {
+        result = 'L';
+      }
+      // null = still in progress
+      const rel = (match.player_match_relationships || []).find(r => r.player.id !== opp.opponentId);
+      if (rel) {
+        vsName = rel.user_event_status?.best_identifier || rel.player?.best_identifier || '—';
+        vsId   = rel.player.id;
+      }
+    }
+
+    const standing = selStandings.find(p => p.id === opp.opponentId);
+    const record   = standing?.record ?? '—';
+    const rawMWP   = standing ? standing.points / (selRound.round_number * 3) : null;
+    const mwp      = rawMWP != null ? Math.max(1/3, rawMWP) : null; // floor at 33.3%
+    const mwpStr   = mwp != null ? (mwp * 100).toFixed(1) + '%' : '—';
+    const mwpColor = rawMWP != null
+      ? (rawMWP >= 0.5 ? 'var(--green)' : rawMWP >= 1/3 ? 'var(--yellow)' : 'var(--red)')
+      : 'var(--t3)';
+
+    const rc  = result === 'W' || result === 'BYE' ? 'win'
+              : result === 'L'                      ? 'loss'
+              : result === 'D'                      ? 'draw'
+              : result === null && match            ? 'pending'
+              : '';
+    const lbl = result === 'W'   ? 'WIN'
+              : result === 'L'   ? 'LOSS'
+              : result === 'D'   ? 'DRAW'
+              : result === 'BYE' ? 'BYE'
+              : match            ? '…'
+              : '—';
+
+    const vsHtml = vsId
+      ? `<span class="rh-opp link" data-pid="${vsId}">${vsName}</span>`
+      : `<span style="color:var(--t3);font-size:.72rem">${vsName}</span>`;
+
+    return `
+      <div class="opp-row ${rc}">
+        <div class="rh-num">R${opp.roundNum}</div>
+        <span class="handle" style="font-size:.78rem">${opp.opponentName}</span>
+        <div><span class="badge ${rc === 'pending' ? 'none' : (rc || 'none')}">${lbl}</span></div>
+        ${vsHtml}
+        <div class="rh-rec" style="text-align:right">${record}</div>
+        <div class="rh-omw" style="color:${mwpColor};text-align:right">${mwpStr}</div>
+      </div>`;
+  }).join('');
+
+  // Clicking an opponent in the vs column jumps to that player
+  rowsEl.querySelectorAll('.rh-opp.link[data-pid]').forEach(el => {
+    el.onclick = e => { e.stopPropagation(); selectPlayer(parseInt(el.dataset.pid)); };
+  });
 }
 
 // ── SIMULATION ───────────────────────────────────
@@ -1463,33 +1786,69 @@ function renderSimulation(pid) {
     return;
   }
 
-  // Remaining rounds: how many Swiss rounds are still to play after the simulated one
-  const swissRounds     = S.rounds.filter(r => r.phase_type === 'SWISS');
-  const totalSwiss      = swissRounds.length;
-  const myRemaining     = Math.max(0, totalSwiss - round.round_number - 1);
-  const othersRemaining = Math.max(0, totalSwiss - round.round_number);
+  // Remaining rounds: derived from position within the Swiss array, not round.round_number,
+  // so it works regardless of how the API numbers rounds across phases.
+  const swissRounds   = S.rounds.filter(r => r.phase_type === 'SWISS');
+  const totalSwiss    = swissRounds.length;
+  const swissPos      = swissRounds.findIndex(r => r.id === round.id); // 0-based index in Swiss
+  // myRemaining  = Swiss rounds left to play AFTER the simulated next one
+  // othersRemaining = Swiss rounds others still play (includes the simulated round itself)
+  const myRemaining     = Math.max(0, totalSwiss - swissPos - 2);
+  const othersRemaining = Math.max(0, totalSwiss - swissPos - 1);
 
-  // For a DRAW, my OMW% decreases: draw opponent also draws, dragging their win rate down,
-  // which in turn pulls my OMW% down. Formula: currentOMW * R*(R+2)/(R+1)²
-  const R = round.round_number;
-  const myOMW_draw = myOMW * R * (R + 2) / ((R + 1) * (R + 1));
+  // If othersRemaining === 0, Swiss is already complete — there is no next round to simulate.
+  // Running win/draw/loss on final standings adds phantom pts and produces nonsense verdicts.
+  if (othersRemaining === 0) {
+    const inCut       = cut && me.rank <= cut;
+    const cutLabel    = cut ? ` · Top ${cut}` : '';
+    const statusColor = cut ? (inCut ? 'var(--green)' : 'var(--red)') : 'var(--t3)';
+    const statusText  = cut ? (inCut ? '✓ Made top cut' : '✗ Missed top cut') : '—';
+    $('sim-rows').innerHTML = `
+      <div style="padding:.6rem .5rem;display:flex;flex-direction:column;gap:.5rem">
+        <div style="font-size:.72rem;color:var(--t3)">
+          Swiss complete — no more rounds to project.
+        </div>
+        <div style="font-size:.9rem;font-weight:700">
+          Final Swiss rank: <span style="color:var(--blue)">#${me.rank}</span>
+          &nbsp;·&nbsp;<span style="color:${statusColor}">${statusText}</span>
+        </div>
+      </div>`;
+    $('sim-note').textContent =
+      `R${round.round_number} standings · ${standings.length} players${cutLabel} · Tiebreakers determined final rank`;
+    return;
+  }
+
+  // On the final Swiss round there are no more rounds after — mayAbove (which uses current pts)
+  // does not model others gaining pts in this round, so SAFE is unreliable. Only LOCKED is real.
+  const isFinalSwiss = myRemaining === 0 && !isElim;
+
+  // DRAW reduces my OMW%: draw opponent also draws, dragging their MWP down.
+  // Mechanic drop: currentOMW * R*(R+2)/(R+1)²
+  // Extra pessimism: in Swiss, late-round draw partners are high-win-rate opponents
+  // whose MWP drop hits your OMW% harder than an average opponent would.
+  const R         = round.round_number;
+  const myOMW_draw = myOMW * R * (R + 2) / ((R + 1) * (R + 1)) * 0.985;
+
+  // The next Swiss round number — used as the row label so "LOSE R4" is unambiguous.
+  const nextSwissRound = swissRounds[swissPos + 1];
+  const simRoundNum    = nextSwissRound ? nextSwissRound.round_number : round.round_number + 1;
 
   const scenarios = [
     { label: 'WIN',  delta: 3, cls: 'win',  scenarioOMW: myOMW      },
     { label: 'DRAW', delta: 1, cls: 'draw', scenarioOMW: myOMW_draw },
-    { label: 'LOSS', delta: 0, cls: 'loss', scenarioOMW: myOMW      },
+    { label: 'LOSE', delta: 0, cls: 'loss', scenarioOMW: myOMW      },
   ];
 
   $('sim-rows').innerHTML = scenarios.map(({ label, delta, cls, scenarioOMW }) => {
-    const projPts                              = currentPts + delta;
-    const { best, worst, absoluteWorst }       = projectRank(pid, projPts, scenarioOMW, standings, myRemaining, othersRemaining);
+    const projPts                        = currentPts + delta;
+    const { best, worst, absoluteWorst } = projectRank(pid, projPts, scenarioOMW, standings, myRemaining, othersRemaining);
 
     let verdictHtml = '';
     if (cut) {
-      if (best > cut)              verdictHtml = `<span class="sim-verdict out">✗ OUT</span>`;
-      else if (absoluteWorst <= cut) verdictHtml = `<span class="sim-verdict lock">✦ LOCKED</span>`;
-      else if (worst <= cut)       verdictHtml = `<span class="sim-verdict safe">✓ SAFE</span>`;
-      else                         verdictHtml = `<span class="sim-verdict risk">⚠ RISKY</span>`;
+      if (best > cut)                         verdictHtml = `<span class="sim-verdict out">✗ OUT</span>`;
+      else if (absoluteWorst <= cut)          verdictHtml = `<span class="sim-verdict lock">✦ LOCKED</span>`;
+      else if (worst <= cut && !isFinalSwiss) verdictHtml = `<span class="sim-verdict safe">✓ SAFE</span>`;
+      else                                    verdictHtml = `<span class="sim-verdict risk">⚠ RISKY</span>`;
     } else {
       verdictHtml = `<span class="sim-verdict nocut">—</span>`;
     }
@@ -1498,7 +1857,7 @@ function renderSimulation(pid) {
 
     return `
       <div class="sim-row ${cls}">
-        <div class="sim-lbl">${label}</div>
+        <div class="sim-lbl">${label}<span class="sim-rnum">R${simRoundNum}</span></div>
         <div class="sim-delta">+${delta}</div>
         <div class="sim-pts">${projPts}</div>
         <div class="sim-rank">${rankText}</div>
@@ -1506,12 +1865,14 @@ function renderSimulation(pid) {
       </div>`;
   }).join('');
 
-  const cutLine    = cut ? ` · Top ${cut} cut` : ' · No cut configured';
-  const roundsCtx  = myRemaining > 0
-    ? ` · ${myRemaining} round${myRemaining > 1 ? 's' : ''} remaining after this`
-    : ' · Final Swiss round';
+  const cutLine   = cut ? ` · Top ${cut} cut` : ' · No cut configured';
+  const roundsCtx = isFinalSwiss
+    ? ' · Final round — only LOCKED is reliable (others also play this round)'
+    : myRemaining > 0
+      ? ` · ${myRemaining} round${myRemaining > 1 ? 's' : ''} remaining after R${simRoundNum}`
+      : '';
   $('sim-note').textContent =
-    `R${round.round_number} standings · ${standings.length} players${cutLine}${roundsCtx} · DRAW reduces OMW% estimate · tied pts count as threats for LOCKED`;
+    `R${round.round_number} standings · ${standings.length} players${cutLine}${roundsCtx} · DRAW lowers OMW% estimate`;
 }
 
 // Click opponent name → jump to that player
@@ -1520,6 +1881,18 @@ $('rh-rows').addEventListener('click', e => {
   if (!span) return;
   const pid = parseInt(span.dataset.pid);
   if (pid) selectPlayer(pid);
+});
+
+// ── WELCOME OVERLAY ──────────────────────────────
+function showWelcome() { $('welcome').classList.remove('hidden'); }
+function hideWelcome() { $('welcome').classList.add('hidden'); }
+
+$('wc-form').addEventListener('submit', e => {
+  e.preventDefault();
+  const url = $('wc-input').value.trim();
+  if (!url) return;
+  $('url-input').value = url;
+  loadEvent(url);
 });
 
 // ── ROSTER DRAWER (mobile) ────────────────────────
@@ -1545,7 +1918,26 @@ $('form').addEventListener('submit', e => {
 
 $('refresh-btn').addEventListener('click', () => {
   const url = $('url-input').value.trim();
-  if (url) loadEvent(url, S.activeId);   // re-fetch live, keep selected player
+  if (url) loadEvent(url, S.activeId);
+});
+
+$('exit-btn').addEventListener('click', () => {
+  localStorage.removeItem('pm_url');
+  localStorage.removeItem('pm_player');
+  S.event = null; S.rounds = []; S.standings = {}; S.matches = {};
+  S.viewRound = null; S.simRound = null; S.activeId = null;
+  _trackerRound = null;
+  $('url-input').value = '';
+  $('banner').classList.remove('on');
+  $('refresh-btn').style.display = 'none';
+  $('exit-btn').style.display    = 'none';
+  $('round-tabs').innerHTML      = '';
+  $('s-body').innerHTML          = '';
+  $('s-table').style.display     = 'none';
+  $('s-empty').textContent       = 'Load an event to see standings';
+  $('s-empty').style.display     = '';
+  clearDetail();
+  showWelcome();
 });
 
 // ── TOP CUT CONTROLS ─────────────────────────────
@@ -1569,7 +1961,10 @@ window.addEventListener('DOMContentLoaded', () => {
   const savedPlayer = localStorage.getItem('pm_player');
   if (savedUrl) {
     $('url-input').value = savedUrl;
+    hideWelcome();
     loadEvent(savedUrl, savedPlayer ? parseInt(savedPlayer) : null, { fromCache: true });
+  } else {
+    showWelcome();
   }
 });
 </script>
