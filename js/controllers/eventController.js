@@ -9,6 +9,7 @@ import { renderRoundTabs, renderStandings } from '../ui/standings.js';
 import { renderDetail, clearDetail } from '../ui/detail.js';
 import { openRoster, closeRoster } from './rosterController.js';
 import { resetTracker } from '../ui/tracker.js';
+import { resetRoundSim } from '../ui/roundSim.js';
 
 // ── LOAD EVENT ───────────────────────────────────
 export async function loadEvent(url, restorePlayerId = null, { fromCache = false } = {}) {
@@ -23,6 +24,7 @@ export async function loadEvent(url, restorePlayerId = null, { fromCache = false
       const withStandings = S.rounds.filter(r => r.standings_status === 'GENERATED');
       S.viewRound = withStandings.at(-1)?.id ?? S.rounds.at(-1)?.id;
       saveUrl(url);
+      $('board-tabs').style.display = '';
       renderBanner();
       renderRoundTabs();
       renderStandings();
@@ -86,6 +88,8 @@ export async function loadEvent(url, restorePlayerId = null, { fromCache = false
 
     saveUrl(url);
     saveCache(eid);
+    resetRoundSim();
+    $('board-tabs').style.display = '';
     renderBanner();
     renderRoundTabs();
     renderStandings();
@@ -123,6 +127,11 @@ export function exitEvent() {
   S.event = null; S.rounds = []; S.standings = {}; S.matches = {};
   S.viewRound = null; S.simRound = null; S.activeId = null;
   resetTracker();
+  resetRoundSim();
+  $('board-tabs').style.display = 'none';
+  document.getElementById('board')?.classList.remove('round-mode');
+  $('btab-analysis')?.classList.add('on');
+  $('btab-round')?.classList.remove('on');
   $('url-input').value        = '';
   $('roster-url-input').value = '';
   $('banner').classList.remove('on');

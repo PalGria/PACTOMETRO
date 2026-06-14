@@ -29,6 +29,13 @@ export function renderDetail(pid) {
   $('d-avatar').style.color = color;
   $('d-avatar').style.border = `1px solid ${color}40`;
 
+  const liveRound   = S.rounds.find(r => r.status === 'IN_PROGRESS');
+  const shownRound  = liveRound ?? lastRound;
+  const totalSwiss  = S.rounds.filter(r => r.phase_type === 'SWISS').length;
+  const roundEl     = $('d-round');
+  roundEl.textContent = `R${shownRound.round_number}${totalSwiss ? '/' + totalSwiss : ''}`;
+  roundEl.title       = `${shownRound.phase_name} — Round ${shownRound.round_number}${liveRound ? ' (LIVE)' : ''}`;
+
   $('d-handle').textContent = handle;
   $('d-real').textContent   = latest.player.best_identifier;
   $('d-rank').textContent   = '#' + latest.rank;

@@ -10,6 +10,7 @@
 <link rel="stylesheet" href="css/layout.css">
 <link rel="stylesheet" href="css/standings.css">
 <link rel="stylesheet" href="css/detail.css">
+<link rel="stylesheet" href="css/round-sim.css">
 </head>
 <body>
 <div id="loader"></div>
@@ -41,8 +42,14 @@
     <div class="phase-pills" id="b-phases"></div>
   </div>
 
+  <!-- Board tabs (shown once an event is loaded) -->
+  <div class="board-tabs" id="board-tabs" style="display:none">
+    <button class="btab on" id="btab-analysis">Analysis</button>
+    <button class="btab"    id="btab-round">Round Sim</button>
+  </div>
+
   <!-- Board -->
-  <div class="board">
+  <div class="board" id="board">
 
     <!-- Standings -->
     <aside class="standings" id="standings-panel">
@@ -110,6 +117,7 @@
             <div class="d-handle" id="d-handle"></div>
             <div class="d-real"   id="d-real"></div>
             <div class="stat-row">
+              <div class="stat"><div class="stat-label">Round</div>  <div class="stat-val yellow"  id="d-round"></div></div>
               <div class="stat"><div class="stat-label">Rank</div>   <div class="stat-val blue"   id="d-rank"></div></div>
               <div class="stat"><div class="stat-label">Record</div> <div class="stat-val"         id="d-rec"></div></div>
               <div class="stat"><div class="stat-label">Points</div> <div class="stat-val green"  id="d-pts"></div></div>
@@ -202,6 +210,12 @@
         </div>
         <div class="wc-example">e.g. https://tcg.ravensburgerplay.com/events/515727</div>
       </div>
+    </div>
+
+    <!-- Round Simulator -->
+    <div class="round-sim" id="round-sim">
+      <div class="rsim-left"  id="rsim-left"></div>
+      <div class="rsim-right" id="rsim-right"></div>
     </div>
 
   </div><!-- /board -->

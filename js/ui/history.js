@@ -5,18 +5,27 @@ export function renderHistory(history) {
   $('rh-rows').innerHTML = history.map(h => {
     const rc  = h.result === 'W' ? 'win' : h.result === 'L' ? 'loss' : h.result === 'D' ? 'draw' : '';
     const lbl = h.result === 'W' ? 'WIN' : h.result === 'L' ? 'LOSS' : h.result === 'D' ? 'DRAW' : '—';
-    const badgeText = h.score ? `${lbl} ${h.score}` : lbl;
+
+    let badgeHtml;
+    if (h.live && !h.result) {
+      badgeHtml = `<span class="badge live-badge">LIVE</span>`;
+    } else {
+      const badgeText = h.score ? `${lbl} ${h.score}` : lbl;
+      badgeHtml = `<span class="badge ${rc || 'none'}">${badgeText}</span>`;
+    }
+
     const oppHtml = h.opponent
       ? `<span class="rh-opp link" data-pid="${h.opponentId}">${h.opponent}</span>`
       : `<span class="rh-opp none">—</span>`;
+
     return `
-      <div class="rh-row ${rc}">
+      <div class="rh-row ${rc}${h.live ? ' live-row' : ''}">
         <div class="rh-num">R${h.round_number}</div>
         ${oppHtml}
-        <div><span class="badge ${rc || 'none'}">${badgeText}</span></div>
-        <div class="rh-rec">${h.record}</div>
-        <div class="rh-omw">${fmtOmw(h.omw)}</div>
-        <div class="rh-rank">#${h.rank}</div>
+        <div>${badgeHtml}</div>
+        <div class="rh-rec">${h.record ?? '—'}</div>
+        <div class="rh-omw">${h.omw != null ? fmtOmw(h.omw) : '—'}</div>
+        <div class="rh-rank">${h.rank != null ? '#' + h.rank : '—'}</div>
       </div>`;
   }).join('');
 

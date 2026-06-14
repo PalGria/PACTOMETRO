@@ -5,9 +5,12 @@ export function buildHistory(pid) {
   const history = [];
 
   for (const r of S.rounds) {
-    if (r.standings_status !== 'GENERATED') continue;
-    const st = (S.standings[r.id] || []).find(p => p.id === pid);
-    if (!st) continue;
+    const hasStandings = r.standings_status === 'GENERATED';
+    const isLive       = r.pairings_status  === 'GENERATED' && !hasStandings;
+    if (!hasStandings && !isLive) continue;
+
+    const st = hasStandings ? (S.standings[r.id] || []).find(p => p.id === pid) : null;
+    if (hasStandings && !st) continue;
 
     // Find match for this player in this round
     const roundMatches = S.matches[r.id] || [];
@@ -43,11 +46,12 @@ export function buildHistory(pid) {
       round_number: r.round_number,
       phase_name:   r.phase_name,
       result, score, opponent, opponentId, isBye,
-      rank:   st.rank,
-      record: st.record,
-      points: st.points,
-      omw:    st.opponent_match_win_percentage,
-      gw:     st.game_win_percentage,
+      live:   isLive,
+      rank:   st?.rank   ?? null,
+      record: st?.record ?? null,
+      points: st?.points ?? null,
+      omw:    st?.opponent_match_win_percentage ?? null,
+      gw:     st?.game_win_percentage           ?? null,
     });
   }
   return history;

@@ -83,6 +83,7 @@
 .stat-val.green  { color: var(--green); }
 .stat-val.purple { color: var(--purple); }
 .stat-val.red    { color: var(--red); }
+.stat-val.yellow { color: var(--yellow); }
 
 /* ── SECTION ─────────────────────────────────────── */
 .section {
@@ -284,6 +285,17 @@
 .badge.loss { background: rgba(248,113,113,.13); color: var(--red); }
 .badge.draw { background: rgba(251,191,36,.13);  color: var(--yellow); }
 .badge.none { color: var(--t3); font-size: .7rem; }
+.badge.live-badge {
+  background: rgba(251,191,36,.13);
+  color: var(--yellow);
+  border: 1px solid rgba(251,191,36,.3);
+  animation: pulse-live 1.2s ease-in-out infinite;
+}
+@keyframes pulse-live {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: .45; }
+}
+.rh-row.live-row { background: rgba(251,191,36,.03); }
 
 .rh-rec {
   font-family: 'JetBrains Mono', monospace;
