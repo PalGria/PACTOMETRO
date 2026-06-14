@@ -892,7 +892,19 @@ body {
 
 /* ── RESPONSIVE ─────────────────────────────────── */
 @media (max-width: 760px) {
-  .board { grid-template-columns: 1fr; }
+  /* Single row that fills the board — without this, #welcome (position:absolute)
+     auto-places itself in row 1 and pushes .detail to row 2, outside the clip. */
+  .board {
+    grid-template-columns: 1fr;
+    grid-template-rows: 1fr;
+  }
+
+  /* Explicitly anchor detail to row 1 / col 1 so it always fills the board */
+  .detail {
+    grid-column: 1;
+    grid-row: 1;
+    min-height: 0;
+  }
 
   .standings {
     position: fixed;
@@ -1265,6 +1277,7 @@ async function loadEvent(url, restorePlayerId = null, { fromCache = false } = {}
       selectPlayer(restorePlayerId);
     } else {
       clearDetail();
+      if (window.innerWidth <= 760) openRoster();
     }
   } catch(e) {
     alert('Failed to load: ' + e.message);
