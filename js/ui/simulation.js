@@ -128,7 +128,7 @@ export function renderSimulation(pid) {
       verdictHtml = `<span class="sim-verdict nocut">—</span>`;
     }
 
-    const rankText = best === worst ? `#${best}` : `#${best}–${worst}`;
+    const rankText = best === absoluteWorst ? `#${best}` : `#${best}–${absoluteWorst}`;
 
     return `
       <div class="sim-row ${cls}">
