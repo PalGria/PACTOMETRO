@@ -137,9 +137,11 @@ export function exitEvent() {
   const board = document.getElementById('board');
   board?.classList.remove('round-mode');
   board?.classList.remove('pool-mode');
+  board?.classList.remove('standings-mode');
   $('btab-analysis')?.classList.add('on');
   $('btab-round')?.classList.remove('on');
   $('btab-pool')?.classList.remove('on');
+  $('btab-standings')?.classList.remove('on');
   $('url-input').value        = '';
   $('roster-url-input').value = '';
   $('banner').classList.remove('on');

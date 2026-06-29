@@ -19,7 +19,8 @@
       "Bash(curl -si \"https://api.cloudflare.ravensburgerplay.com/hydraproxy/api/v2/tournament-rounds/937420/matches/\")",
       "Bash(curl -si \"https://api.cloudflare.ravensburgerplay.com/hydraproxy/api/v2/tournament-rounds/937420/matches/paginated/?page=1&page_size=20\")",
       "Bash(curl -s \"http://localhost:8080/api/tournament-rounds/935334/matches/paginated/?page=1&page_size=20\")",
-      "Bash(python3 -c ' *)"
+      "Bash(python3 -c ' *)",
+      "Skill(run)"
     ]
   }
 }

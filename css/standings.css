@@ -250,3 +250,39 @@
 .s-table tr.p-row.in-cut { background: rgba(251,191,36,.03); }
 .s-table tr.p-row.in-cut:hover { background: rgba(251,191,36,.07); }
 .s-table tr.p-row.in-cut.active { background: rgba(56,189,248,.09); }
+
+/* ── STANDINGS TAB (all-rounds) ───────────────────── */
+.all-rounds { display: none; flex-direction: column; overflow: hidden; }
+
+.board.standings-mode > .detail { display: none; }
+.board.standings-mode .all-rounds { display: flex; grid-column: 1 / -1; }
+
+@media (min-width: 761px) {
+  .board.standings-mode > .standings { display: none; }
+}
+
+.ar-panel-bar {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .5rem;
+  padding: .6rem .85rem;
+  border-bottom: 1px solid var(--b);
+  background: var(--bg);
+}
+
+.ar-live-note {
+  flex-shrink: 0;
+  padding: .3rem .85rem;
+  font-size: .6rem;
+  color: var(--yellow);
+  background: rgba(251,191,36,.05);
+  border-bottom: 1px solid rgba(251,191,36,.15);
+}
+.ar-live-note em { font-style: normal; font-family: 'JetBrains Mono', monospace; }
+
+.ar-scroll { flex: 1; overflow-y: auto; }
+
+.ar-delta-up   { color: var(--green); }
+.ar-delta-down { color: var(--red); }

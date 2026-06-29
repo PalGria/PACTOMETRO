@@ -26,8 +26,12 @@
 .btab.on    { background: var(--blue); color: #0b0e16; border-color: var(--blue); }
 
 /* ── BOARD MODE SWITCHING ───────────────────────── */
-.board.round-mode > .standings,
 .board.round-mode > .detail { display: none; }
+
+/* On mobile .standings is position:fixed so hiding it breaks the roster drawer */
+@media (min-width: 761px) {
+  .board.round-mode > .standings { display: none; }
+}
 
 .round-sim { display: none; }
 .board.round-mode .round-sim {
@@ -387,6 +391,47 @@
 }
 .pool-placeholder-icon { font-size: 3rem; opacity: .25; }
 .pool-placeholder p { font-size: .8rem; letter-spacing: .06em; text-align: center; }
+
+/* ── POOL TAB BAR ────────────────────────────────── */
+.pool-tab-bar {
+  flex-shrink: 0;
+  display: flex;
+  gap: .35rem;
+  padding: .5rem .85rem;
+  border-bottom: 1px solid var(--b);
+  background: var(--bg);
+}
+
+.pool-tab {
+  padding: .28rem .75rem;
+  border-radius: 5px;
+  border: 1px solid var(--b2);
+  background: transparent;
+  color: var(--t2);
+  font-family: 'Inter', sans-serif;
+  font-size: .62rem;
+  font-weight: 700;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all .13s;
+  display: flex;
+  align-items: center;
+  gap: .35rem;
+}
+.pool-tab:hover { color: var(--t1); border-color: var(--blue); }
+.pool-tab.on    { background: var(--blue); color: #0b0e16; border-color: var(--blue); }
+
+.pool-tab-live {
+  font-size: .52rem;
+  font-weight: 800;
+  letter-spacing: .08em;
+  color: var(--yellow);
+  border: 1px solid rgba(251,191,36,.4);
+  border-radius: 3px;
+  padding: .05rem .3rem;
+}
+.pool-tab.on .pool-tab-live { color: #0b0e16; border-color: rgba(11,14,22,.3); }
 
 /* ── MOBILE ──────────────────────────────────────── */
 @media (max-width: 760px) {

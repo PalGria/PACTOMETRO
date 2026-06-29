@@ -5,6 +5,7 @@ import { renderStandings } from './ui/standings.js';
 import { renderSimulation } from './ui/simulation.js';
 import { renderRoundSim } from './ui/roundSim.js';
 import { renderOppPool } from './ui/oppPool.js';
+import { renderAllRounds } from './ui/allRounds.js';
 import S from './state.js';
 import { $ } from './utils.js';
 
@@ -25,13 +26,15 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function switchBoardTab(mode) {
-  $('btab-analysis').classList.toggle('on', mode === 'analysis');
-  $('btab-round').classList.toggle('on',    mode === 'round');
-  $('btab-pool').classList.toggle('on',     mode === 'pool');
+  $('btab-analysis').classList.toggle('on',   mode === 'analysis');
+  $('btab-round').classList.toggle('on',      mode === 'round');
+  $('btab-pool').classList.toggle('on',       mode === 'pool');
+  $('btab-standings').classList.toggle('on',  mode === 'standings');
   const board = _board();
   if (board) {
-    board.classList.toggle('round-mode', mode === 'round');
-    board.classList.toggle('pool-mode',  mode === 'pool');
+    board.classList.toggle('round-mode',    mode === 'round');
+    board.classList.toggle('pool-mode',     mode === 'pool');
+    board.classList.toggle('standings-mode', mode === 'standings');
   }
 }
 
@@ -75,6 +78,7 @@ $('wc-form').addEventListener('submit', e => { e.preventDefault(); const url = $
 $('btab-analysis').addEventListener('click', () => switchBoardTab('analysis'));
 $('btab-round').addEventListener('click', () => { switchBoardTab('round'); renderRoundSim(); });
 $('btab-pool').addEventListener('click', () => { switchBoardTab('pool'); renderOppPool(); });
+$('btab-standings').addEventListener('click', () => { switchBoardTab('standings'); renderAllRounds(); });
 
 // Top cut controls
 $('no-cut-cb').addEventListener('change', () => { $('top-cut-input').disabled = $('no-cut-cb').checked; saveTopCut(); renderStandings(); if (S.activeId) renderSimulation(S.activeId); });
