@@ -1,13 +1,15 @@
 import { restoreTopCut, saveTopCut } from './services/storage.js';
-import { loadEvent, exitEvent, selectPlayer } from './controllers/eventController.js';
+import { loadEvent, exitEvent, selectPlayer, refreshEvent } from './controllers/eventController.js';
 import { openRoster, closeRoster } from './controllers/rosterController.js';
-import { renderStandings } from './ui/standings.js';
+import { renderStandings, setSearchQuery } from './ui/standings.js';
 import { renderSimulation } from './ui/simulation.js';
 import { renderRoundSim } from './ui/roundSim.js';
 import { renderOppPool } from './ui/oppPool.js';
 import { renderAllRounds } from './ui/allRounds.js';
 import S from './state.js';
-import { $ } from './utils.js';
+import { $, extractEventId } from './utils.js';
+import { renderOverview } from './ui/overview.js';
+import { switchBoardTab } from './ui/boardTabs.js';
 
 const _board = () => document.getElementById('board');
 
@@ -25,23 +27,18 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 });
 
-function switchBoardTab(mode) {
-  $('btab-analysis').classList.toggle('on',   mode === 'analysis');
-  $('btab-round').classList.toggle('on',      mode === 'round');
-  $('btab-pool').classList.toggle('on',       mode === 'pool');
-  $('btab-standings').classList.toggle('on',  mode === 'standings');
-  const board = _board();
-  if (board) {
-    board.classList.toggle('round-mode',    mode === 'round');
-    board.classList.toggle('pool-mode',     mode === 'pool');
-    board.classList.toggle('standings-mode', mode === 'standings');
-  }
-}
-
 document.addEventListener('DOMContentLoaded', () => {
   restoreTopCut();
-  const savedUrl    = localStorage.getItem('pm_url');
-  const savedPlayer = localStorage.getItem('pm_player');
+  const eidFromLink = extractEventId(new URLSearchParams(location.search).get('e') || '');
+  const savedUrl     = localStorage.getItem('pm_url');
+  const savedPlayer  = localStorage.getItem('pm_player');
+  if (eidFromLink) {
+    $('url-input').value        = eidFromLink;
+    $('roster-url-input').value = eidFromLink;
+    import('./ui/welcome.js').then(m => m.hideWelcome());
+    loadEvent(eidFromLink, null, { fromCache: false });
+    return;
+  }
   if (savedUrl) {
     $('url-input').value        = savedUrl;
     $('roster-url-input').value = savedUrl;
@@ -53,13 +50,31 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 });
 
-// pm:select-player events (from standings, history + tracker row clicks)
-document.addEventListener('pm:select-player', e => selectPlayer(e.detail.pid));
+// pm:select-player events (from standings, history + tracker row clicks, and
+// the Overview dashboard's player links). Overview is its own tab now — a
+// player link there needs to jump to Analysis to actually show the detail.
+document.addEventListener('pm:select-player', e => {
+  const board = _board();
+  if (board && board.classList.contains('overview-mode')) switchBoardTab('analysis');
+  selectPlayer(e.detail.pid);
+});
 
 // Header form
 $('form').addEventListener('submit', e => { e.preventDefault(); const url = $('url-input').value.trim(); if (url) loadEvent(url); });
-$('refresh-btn').addEventListener('click', () => { const url = $('url-input').value.trim(); if (url) loadEvent(url, S.activeId); });
+$('refresh-btn').addEventListener('click', () => { if (S.event) refreshEvent(); else { const url = $('url-input').value.trim(); if (url) loadEvent(url); } });
 $('exit-btn').addEventListener('click', exitEvent);
+
+// Copy shareable link
+function _copyLink(btn) {
+  if (!navigator.clipboard) return;
+  navigator.clipboard.writeText(location.href).then(() => {
+    const prev = btn.textContent;
+    btn.textContent = '✓';
+    setTimeout(() => { btn.textContent = prev; }, 1200);
+  }).catch(() => {});
+}
+$('share-btn').addEventListener('click', () => _copyLink($('share-btn')));
+$('roster-share-btn').addEventListener('click', () => _copyLink($('roster-share-btn')));
 
 // Roster drawer
 $('menu-btn').addEventListener('click', openRoster);
@@ -68,18 +83,53 @@ $('drawer-overlay').addEventListener('click', closeRoster);
 
 // Roster form (mobile)
 $('roster-load-btn').addEventListener('click', () => { const url = $('roster-url-input').value.trim(); if (!url) return; $('url-input').value = url; closeRoster(); loadEvent(url); });
-$('roster-refresh-btn').addEventListener('click', () => { closeRoster(); const url = $('url-input').value || localStorage.getItem('pm_url') || ''; if (url) loadEvent(url, S.activeId); });
+$('roster-refresh-btn').addEventListener('click', () => { closeRoster(); if (S.event) refreshEvent(); else { const url = $('url-input').value || localStorage.getItem('pm_url') || ''; if (url) loadEvent(url); } });
 $('roster-exit-btn').addEventListener('click', () => { closeRoster(); exitEvent(); });
 
 // Welcome form
 $('wc-form').addEventListener('submit', e => { e.preventDefault(); const url = $('wc-input').value.trim(); if (!url) return; $('url-input').value = url; loadEvent(url); });
 
 // Board tabs
+$('btab-overview').addEventListener('click', () => { switchBoardTab('overview'); renderOverview(); });
 $('btab-analysis').addEventListener('click', () => switchBoardTab('analysis'));
+$('d-back-btn').addEventListener('click', () => { switchBoardTab('overview'); renderOverview(); });
 $('btab-round').addEventListener('click', () => { switchBoardTab('round'); renderRoundSim(); });
 $('btab-pool').addEventListener('click', () => { switchBoardTab('pool'); renderOppPool(); });
 $('btab-standings').addEventListener('click', () => { switchBoardTab('standings'); renderAllRounds(); });
 
-// Top cut controls
-$('no-cut-cb').addEventListener('change', () => { $('top-cut-input').disabled = $('no-cut-cb').checked; saveTopCut(); renderStandings(); if (S.activeId) renderSimulation(S.activeId); });
-$('top-cut-input').addEventListener('input', () => { saveTopCut(); renderStandings(); if (S.activeId) renderSimulation(S.activeId); });
+// Top cut controls — keep both the simulator (if a player's shown) and the
+// overview dashboard (if it's the visible tab) in sync.
+$('no-cut-cb').addEventListener('change', () => { $('top-cut-input').disabled = $('no-cut-cb').checked; saveTopCut(); renderStandings(); if (S.activeId) renderSimulation(S.activeId); renderOverview(); });
+$('top-cut-input').addEventListener('input', () => { saveTopCut(); renderStandings(); if (S.activeId) renderSimulation(S.activeId); renderOverview(); });
+
+// Player search — the magnifying glass toggles a search row below the top
+// cut bar; closing it clears the filter too, so the roster never stays
+// silently filtered with no visible reason why.
+function _closeSearch() {
+  $('search-btn').classList.remove('on');
+  $('search-bar').hidden = true;
+  $('search-input').value = '';
+  $('search-clear-btn').hidden = true;
+  setSearchQuery('');
+}
+$('search-btn').addEventListener('click', () => {
+  const opening = $('search-bar').hidden;
+  if (opening) {
+    $('search-btn').classList.add('on');
+    $('search-bar').hidden = false;
+    $('search-input').focus();
+  } else {
+    _closeSearch();
+  }
+});
+$('search-input').addEventListener('input', () => {
+  $('search-clear-btn').hidden = $('search-input').value === '';
+  setSearchQuery($('search-input').value);
+});
+$('search-input').addEventListener('keydown', e => { if (e.key === 'Escape') _closeSearch(); });
+$('search-clear-btn').addEventListener('click', () => {
+  $('search-input').value = '';
+  $('search-clear-btn').hidden = true;
+  setSearchQuery('');
+  $('search-input').focus();
+});

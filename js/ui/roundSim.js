@@ -1,15 +1,29 @@
 import S from '../state.js';
 import { $ } from '../utils.js';
 import { getTopCut } from '../services/storage.js';
+import { projectRound, baseStandingsBefore, stateBeforeRound } from '../engine/adapter.js';
+import { runPendingRoundSimulation } from '../services/simWorker.js';
 
 let _picks    = {};        // { [matchId]: 'W1' | 'D' | 'W2' | null }
 let _locked   = new Set(); // matchIds with confirmed server results
 let _simRound = null;
 
+// P(cut) Monte Carlo over pending tables: cached per (round, decided tables,
+// cut) and guarded by a token so a stale result from a superseded pick never
+// overwrites a newer render.
+const _mcCache = new Map();
+let _mcToken = 0;
+
 export function resetRoundSim() {
   _picks    = {};
   _locked   = new Set();
   _simRound = null;
+  _mcCache.clear();
+}
+
+// Data refreshed: lock newly reported results, keep picks for pending tables.
+export function syncRoundSim() {
+  if (_simRound && S.matches[_simRound]) _autoPickFromResults(_simRound);
 }
 
 // ── ENTRY POINT ──────────────────────────────────
@@ -62,65 +76,46 @@ function _autoPickFromResults(roundId) {
   }
 }
 
-// ── BASE STANDINGS (nearest completed round ≤ roundId) ──
-function _findBaseStandings(roundId) {
-  const idx = S.rounds.findIndex(r => r.id === roundId);
-  for (let i = idx; i >= 0; i--) {
-    if (S.rounds[i].standings_status === 'GENERATED') {
-      return S.standings[S.rounds[i].id] || [];
-    }
-  }
-  return [];
+// ── COMPUTE PROJECTED STANDINGS ───────────────────
+// Exact: rebuilds every player's record from all previous Swiss rounds, applies
+// locked results + user picks, and recomputes OMW%/GW%/OGW% (js/engine).
+function _computeProjected(roundId) {
+  return projectRound(roundId, _picks);
 }
 
-// ── COMPUTE PROJECTED STANDINGS ───────────────────
-function _computeProjected(roundId) {
-  const base    = _findBaseStandings(roundId);
+function _mcSamplesFor(players) {
+  return Math.max(500, Math.min(3000, Math.round(45000 / Math.max(1, players))));
+}
+
+// Engine-shaped input for simulatePendingRound: every table of this round as
+// a pair, results already picked (auto-seeded or by hand) as `locked`, the
+// rest left for the Monte Carlo to sample.
+function _buildPendingInput(roundId) {
   const matches = S.matches[roundId] || [];
+  const field   = new Set(baseStandingsBefore(roundId).map(p => p.id));
+  const pairs   = [];
+  const locked  = {};
+  let byeId = null, pendingCount = 0;
 
-  const ptMap  = {};
-  const omwMap = {};
-  for (const p of base) {
-    ptMap[p.id]  = p.points;
-    omwMap[p.id] = p.opponent_match_win_percentage ?? 0;
+  for (const m of matches) {
+    const [a, b] = m.players || [];
+    if (a != null) field.add(a);
+    if (b != null) field.add(b);
+    if (m.match_is_bye) { byeId = a; continue; }
+    if (a == null || b == null) continue;
+    pairs.push([a, b]);
+    const pick = _picks[m.id];
+    if (pick) locked[`${a}:${b}`] = pick;
+    else pendingCount++;
   }
-
-  const unpicked = new Set();
-  for (const match of matches) {
-    const [p1, p2] = match.players || [];
-    const pick = _picks[match.id];
-    if (!pick) {
-      if (p1 != null) unpicked.add(p1);
-      if (p2 != null) unpicked.add(p2);
-    } else if (pick === 'W1') {
-      if (p1 in ptMap) ptMap[p1] += 3;
-    } else if (pick === 'W2') {
-      if (p2 in ptMap) ptMap[p2] += 3;
-    } else if (pick === 'D') {
-      if (p1 in ptMap) ptMap[p1] += 1;
-      if (p2 in ptMap) ptMap[p2] += 1;
-    }
-  }
-
-  const sorted = base
-    .map(p => ({
-      ...p,
-      projPts: ptMap[p.id] ?? p.points,
-      unknown: unpicked.has(p.id),
-    }))
-    .sort((a, b) =>
-      b.projPts - a.projPts ||
-      (omwMap[b.id] ?? 0) - (omwMap[a.id] ?? 0)
-    );
-
-  return sorted.map((p, i) => ({ ...p, projRank: i + 1 }));
+  return { pairs, byeId, locked, field: [...field], pendingCount };
 }
 
 // ── RENDER: PAIRINGS LEFT PANE ───────────────────
 function _renderPairings(roundId, leftEl) {
   const eligible = S.rounds.filter(r => r.pairings_status === 'GENERATED');
   const matches  = S.matches[roundId] || [];
-  const base     = _findBaseStandings(roundId);
+  const base     = baseStandingsBefore(roundId);
   const stMap    = Object.fromEntries(base.map(p => [p.id, p]));
 
   const resolveName = (pid, rels) => {
@@ -132,7 +127,7 @@ function _renderPairings(roundId, leftEl) {
 
   const resolveMeta = pid => {
     const st = stMap[pid];
-    return st ? `#${st.rank} · ${st.points}pts` : '';
+    return st ? `#${st.rank} · ${st.points}pts` : 'new';
   };
 
   const tabsHtml = eligible.map(r => `
@@ -249,6 +244,9 @@ function _renderProjected(roundId, rightEl) {
   const projected = _computeProjected(roundId);
   const cut       = getTopCut();
   const round     = S.rounds.find(r => r.id === roundId);
+  const mcInput   = _buildPendingInput(roundId);
+  const showPcut  = cut != null && mcInput.pendingCount > 0;
+  const token     = ++_mcToken; // any earlier in-flight simulation is now stale
 
   let html = `
     <div class="rsim-panel-bar" style="position:sticky;top:0">
@@ -261,6 +259,7 @@ function _renderProjected(roundId, rightEl) {
           <th>Player</th>
           <th>Pts</th>
           <th style="text-align:right">Δ</th>
+          ${showPcut ? '<th style="text-align:right">P(cut)</th>' : ''}
         </tr>
       </thead>
       <tbody>`;
@@ -268,27 +267,27 @@ function _renderProjected(roundId, rightEl) {
   let cutInserted = false;
   for (const p of projected) {
     if (!cutInserted && cut != null && p.projRank > cut) {
-      html += `<tr class="proj-cut-line"><td colspan="4">
+      html += `<tr class="proj-cut-line"><td colspan="${showPcut ? 5 : 4}">
         <div class="cut-line-inner">Top ${cut}</div></td></tr>`;
       cutInserted = true;
     }
 
     const inCut    = cut != null && p.projRank <= cut;
-    const wasInCut = cut != null && p.rank     <= cut;
+    const wasInCut = cut != null && p.rank != null && p.rank <= cut;
     const promoted  = inCut  && !wasInCut;
     const relegated = wasInCut && !inCut;
 
     let deltaCls = 'same', deltaStr = '—';
     if (p.unknown) {
       deltaStr = '?';
-    } else {
+    } else if (p.rank != null) {
       const d = p.rank - p.projRank;
       if (d > 0)      { deltaCls = 'up';   deltaStr = `↑${d}`; }
       else if (d < 0) { deltaCls = 'down'; deltaStr = `↓${Math.abs(d)}`; }
     }
 
     const handle = p.user_event_status?.best_identifier || p.player?.best_identifier || '?';
-    const ptsStr = p.points === p.projPts
+    const ptsStr = p.points == null || p.points === p.projPts
       ? `${p.projPts}`
       : `${p.points}→${p.projPts}`;
 
@@ -298,18 +297,42 @@ function _renderProjected(roundId, rightEl) {
         <td><span class="handle">${handle}</span></td>
         <td class="proj-pts">${ptsStr}</td>
         <td class="proj-delta ${deltaCls}">${deltaStr}</td>
+        ${showPcut ? `<td class="proj-pcut" data-pid="${p.id}"><span class="sim-spinner"></span></td>` : ''}
       </tr>`;
   }
 
   html += `</tbody></table>`;
 
   if (round) {
-    const pendingCount = (S.matches[roundId] || []).filter(m => !_locked.has(m.id) && _picks[m.id] === null).length;
-    const note = pendingCount > 0
-      ? `${pendingCount} match${pendingCount > 1 ? 'es' : ''} unpicked · results estimated`
-      : `All matches picked · OMW tiebreaker estimated`;
+    const note = mcInput.pendingCount > 0
+      ? `${mcInput.pendingCount} match${mcInput.pendingCount > 1 ? 'es' : ''} unpicked · tiebreakers exact for decided tables${showPcut ? ' · P(cut) simulated over pending tables' : ''}`
+      : `All matches picked · tiebreakers exact`;
     html += `<div class="s-empty" style="font-size:.6rem;padding:.65rem 1rem">${note}</div>`;
   }
 
   rightEl.innerHTML = html;
+  if (!showPcut) return;
+
+  const key = `${roundId}|${JSON.stringify(mcInput.locked)}|${cut}`;
+  const cached = _mcCache.get(key);
+  if (cached) { _applyPcut(rightEl, cached); return; }
+
+  runPendingRoundSimulation({
+    state: stateBeforeRound(roundId),
+    pairs: mcInput.pairs, byeId: mcInput.byeId, locked: mcInput.locked,
+    field: mcInput.field, cut, samples: _mcSamplesFor(mcInput.field.length),
+  }).then(results => {
+    _mcCache.set(key, results);
+    if (token === _mcToken) _applyPcut(rightEl, results);
+  }).catch(() => {}); // leave the spinners on failure — not a critical path
+}
+
+function _applyPcut(rightEl, results) {
+  rightEl.querySelectorAll('.proj-pcut[data-pid]').forEach(td => {
+    const p = results[td.dataset.pid];
+    if (p == null) return;
+    const pct = Math.round(p * 100);
+    const cls = pct >= 80 ? 'good' : pct <= 20 ? 'bad' : 'mid';
+    td.innerHTML = `<span class="proj-pcut-val ${cls}">${pct}%</span>`;
+  });
 }

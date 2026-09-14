@@ -144,7 +144,7 @@
 .board {
   flex: 1;
   display: grid;
-  grid-template-columns: 320px 1fr;
+  grid-template-columns: 400px 1fr;
   overflow: hidden;
   position: relative;
 }
@@ -336,7 +336,7 @@
   .standings {
     position: fixed;
     top: 0; left: 0; bottom: 0;
-    width: min(300px, 88vw);
+    width: 92vw;
     z-index: 200;
     border-right: 1px solid var(--b2);
     background: var(--bg);
@@ -369,3 +369,12 @@
 [data-theme="light"] .wc-input:focus {
   box-shadow: 0 0 0 4px rgba(28,95,184,.12);
 }
+
+/* ── LIVE STATUS LINE (banner) ───────────────── */
+.banner-live {
+  font-size: .62rem;
+  color: var(--t3);
+  margin-top: .25rem;
+  letter-spacing: .02em;
+}
+.banner-live.warn { color: var(--yellow); }

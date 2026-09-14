@@ -1,6 +1,7 @@
 import S from '../state.js';
 import { fmtOmw } from '../utils.js';
 import { buildHistory } from '../tournament.js';
+import { projectRound } from '../engine/adapter.js';
 
 let _poolTab = 'last'; // 'last' | 'current'
 
@@ -40,7 +41,7 @@ export function renderOppPool() {
   // Resolve standings based on active tab
   const useProjected = hasLive && _poolTab === 'current';
   const standings = useProjected
-    ? _computeProjected(liveRound.id, completedRounds)
+    ? _computeProjected(liveRound.id)
     : S.standings[lastRound.id] || [];
 
   const me = standings.find(p => p.id === S.activeId);
@@ -157,42 +158,15 @@ function _wireTabButtons(el, liveRound) {
 }
 
 // ── PROJECTED STANDINGS FROM LOCKED API RESULTS ───
-function _computeProjected(roundId, completedRounds) {
-  const base = S.standings[completedRounds.at(-1)?.id] || [];
-
-  const ptMap  = {};
-  const omwMap = {};
-  const recMap = {};
-  const metaMap = {};
-  for (const p of base) {
-    ptMap[p.id]   = p.points;
-    omwMap[p.id]  = p.opponent_match_win_percentage ?? 0;
-    recMap[p.id]  = p.record;
-    metaMap[p.id] = p;
-  }
-
-  const matches = S.matches[roundId] || [];
-  for (const match of matches) {
-    const [p1, p2] = match.players || [];
-    const isBye  = match.match_is_bye;
-    const isDraw = match.match_is_intentional_draw || match.match_is_unintentional_draw;
-    const hasWin = match.winning_player != null;
-
-    if (isBye || isDraw || hasWin) {
-      if (isBye) {
-        if (p1 != null && p1 in ptMap) ptMap[p1] += 3;
-      } else if (isDraw) {
-        if (p1 != null && p1 in ptMap) ptMap[p1] += 1;
-        if (p2 != null && p2 in ptMap) ptMap[p2] += 1;
-      } else {
-        const winner = match.players?.[0] === match.winning_player ? p1 : p2;
-        if (winner != null && winner in ptMap) ptMap[winner] += 3;
-      }
-    }
-  }
-
-  return base
-    .map(p => ({ ...metaMap[p.id], points: ptMap[p.id] ?? p.points }))
-    .sort((a, b) => b.points - a.points || (omwMap[b.id] ?? 0) - (omwMap[a.id] ?? 0))
-    .map((p, i) => ({ ...p, rank: i + 1 }));
+// Exact projection (js/engine): points and tiebreakers recomputed from every
+// confirmed result, so the "current" tab orders players correctly within a tier.
+function _computeProjected(roundId) {
+  return projectRound(roundId, {}).map(p => ({
+    ...p,
+    points: p.projPts,
+    rank:   p.projRank,
+    opponent_match_win_percentage: p.omw,
+    game_win_percentage:           p.gw,
+    opponent_game_win_percentage:  p.ogw,
+  }));
 }

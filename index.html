@@ -27,6 +27,7 @@
              placeholder="https://tcg.ravensburgerplay.com/events/515727" />
       <button class="btn" id="load-btn" type="submit">Load</button>
       <button class="btn" id="refresh-btn" type="button" title="Reload live data" style="background:var(--card);color:var(--t2);border:1px solid var(--b2);display:none">↺</button>
+      <button class="btn" id="share-btn" type="button" title="Copy shareable link" style="background:var(--card);color:var(--t2);border:1px solid var(--b2);display:none">🔗</button>
       <button class="btn" id="exit-btn" type="button" title="Exit event" style="background:var(--card);color:var(--t2);border:1px solid var(--b2);display:none">✕</button>
     </form>
     <button class="theme-btn" id="theme-btn" title="Toggle day / night"></button>
@@ -42,12 +43,14 @@
   <div class="banner" id="banner">
     <div class="banner-name" id="b-name"></div>
     <div class="banner-meta" id="b-meta"></div>
+    <div class="banner-live" id="b-live"></div>
     <div class="phase-pills" id="b-phases"></div>
   </div>
 
   <!-- Board tabs (shown once an event is loaded) -->
   <div class="board-tabs" id="board-tabs" style="display:none">
-    <button class="btab on" id="btab-analysis">Analysis</button>
+    <button class="btab on" id="btab-overview">Overview</button>
+    <button class="btab"    id="btab-analysis">Analysis</button>
     <button class="btab"    id="btab-round">Round Sim</button>
     <button class="btab"    id="btab-pool">Opp Pool</button>
     <button class="btab"    id="btab-standings">Standings</button>
@@ -69,6 +72,8 @@
         <div class="roster-action-row" id="roster-action-row" style="display:none">
           <button class="btn" id="roster-refresh-btn" type="button"
                   style="background:var(--card);color:var(--t2);border:1px solid var(--b2);flex:1">↺ Refresh</button>
+          <button class="btn" id="roster-share-btn" type="button"
+                  style="background:var(--card);color:var(--t2);border:1px solid var(--b2);flex:1">🔗 Share</button>
           <button class="btn" id="roster-exit-btn" type="button"
                   style="background:var(--card);color:var(--t2);border:1px solid var(--b2);flex:1">✕ Exit</button>
         </div>
@@ -88,11 +93,22 @@
         </label>
       </div>
 
+      <div class="search-bar" id="search-bar" hidden>
+        <input class="search-input" id="search-input" type="text"
+               placeholder="Search players…" autocomplete="off" spellcheck="false" />
+        <button class="search-clear-btn" id="search-clear-btn" type="button" aria-label="Clear search" hidden>✕</button>
+      </div>
+
+      <div class="ar-live-note" id="s-live-note" style="display:none">Projected from locked results · tiebreakers recomputed · pending matches shown as <em>~rank?</em></div>
+
       <div class="standings-scroll">
         <div class="s-empty" id="s-empty">Load an event to see standings</div>
         <table class="s-table" id="s-table" style="display:none">
           <thead>
             <tr>
+              <th style="width:22px">
+                <button class="search-btn" id="search-btn" type="button" title="Search players" aria-label="Search players">🔍</button>
+              </th>
               <th style="width:28px">#</th>
               <th>Player</th>
               <th>Rec</th>
@@ -113,6 +129,10 @@
         <p>Select a player to analyse</p>
       </div>
 
+      <div class="detail-overview" id="d-overview">
+        <div id="ov-root"></div>
+      </div>
+
       <div id="d-content" style="display:none">
 
         <!-- Player head -->
@@ -131,6 +151,7 @@
               <div class="stat"><div class="stat-label">Status</div> <div class="stat-val"         id="d-status"></div></div>
             </div>
           </div>
+          <button class="d-back-btn" id="d-back-btn" type="button" title="Back to overview">← Overview</button>
         </div>
 
         <!-- Simulation + OMW side by side -->
@@ -145,8 +166,9 @@
               <div>Outcome</div>
               <div>+Pts</div>
               <div>Total</div>
-              <div>Rank range</div>
-              <div>Cut</div>
+              <div>P(cut)</div>
+              <div>Rank</div>
+              <div>Verdict</div>
             </div>
             <div id="sim-rows"></div>
             <div class="sim-note" id="sim-note"></div>

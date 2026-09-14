@@ -1,8 +1,27 @@
 import S from '../state.js';
 import { $, fmtOmw } from '../utils.js';
-import { getTopCut } from '../services/storage.js';
+import { getTopCut, getFollowed, toggleFollowed } from '../services/storage.js';
+import { projectRound } from '../engine/adapter.js';
+import { renderOverview } from './overview.js';
 
 export { getTopCut };
+
+// ── SEARCH ────────────────────────────────────────
+let _query = '';
+
+export function setSearchQuery(q) {
+  _query = (q || '').trim().toLowerCase();
+  renderStandings();
+}
+
+export function resetSearch() { _query = ''; }
+
+function _matchesQuery(p) {
+  if (!_query) return true;
+  const handle = p.user_event_status?.best_identifier || p.player?.best_identifier || '';
+  const real   = p.player?.best_identifier || '';
+  return handle.toLowerCase().includes(_query) || real.toLowerCase().includes(_query);
+}
 
 // ── FIXED TOOLTIP ────────────────────────────────
 const _tip = document.getElementById('tb-tooltip');
@@ -43,10 +62,28 @@ export function renderRoundTabs() {
 
 // ── RENDER: STANDINGS ────────────────────────────
 export function renderStandings() {
-  const rows = (S.standings[S.viewRound] || []).slice().sort((a, b) => a.rank - b.rank);
+  const round = S.rounds.find(r => r.id === S.viewRound);
+  const canProject = round?.status === 'IN_PROGRESS'
+    && round?.standings_status !== 'GENERATED'
+    && round?.pairings_status === 'GENERATED';
+
+  const rows = canProject ? projectRound(S.viewRound, {}) : (S.standings[S.viewRound] || []).slice();
+  rows.sort((a, b) => canProject ? a.projRank - b.projRank : a.rank - b.rank);
+
+  const liveNote = $('s-live-note');
+  if (liveNote) liveNote.style.display = canProject ? '' : 'none';
 
   if (rows.length === 0) {
     $('s-empty').textContent = 'No standings for this round yet';
+    $('s-empty').style.display = '';
+    $('s-table').style.display = 'none';
+    return;
+  }
+
+  const filtered = _query ? rows.filter(_matchesQuery) : rows;
+
+  if (filtered.length === 0) {
+    $('s-empty').textContent = `No players match "${_query}"`;
     $('s-empty').style.display = '';
     $('s-table').style.display = 'none';
     return;
@@ -56,32 +93,38 @@ export function renderStandings() {
   $('s-table').style.display = '';
 
   const cut = getTopCut();
+  const followed = new Set(getFollowed(S.event?.id));
   let html = '';
 
-  for (const p of rows) {
+  for (const p of filtered) {
     const ues    = p.user_event_status;
     const handle = ues.best_identifier || p.player.best_identifier;
     const active = ues.registration_status === 'COMPLETE';
     const sel    = p.id === S.activeId;
-    const inCut  = cut != null && p.rank <= cut;
 
-    const omw = p.opponent_match_win_percentage;
-    const gw  = p.game_win_percentage;
-    const ogw = p.opponent_game_win_percentage;
+    const rank = canProject ? p.projRank : p.rank;
+    const pts  = canProject ? p.projPts  : p.points;
+    const omw  = canProject ? p.omw : p.opponent_match_win_percentage;
+    const gw   = canProject ? p.gw  : p.game_win_percentage;
+    const ogw  = canProject ? p.ogw : p.opponent_game_win_percentage;
+    const inCut   = cut != null && rank <= cut;
+    const rankStr = canProject && p.unknown ? `~${rank}?` : `${rank}`;
+    const isFollowed = followed.has(p.id);
 
     html += `
       <tr class="p-row${inCut ? ' in-cut' : ''}${sel ? ' active' : ''}" data-id="${p.id}"
           data-omw="${omw ?? ''}" data-gw="${gw ?? ''}" data-ogw="${ogw ?? ''}">
-        <td class="rank-num">${p.rank}</td>
+        <td class="star-cell${isFollowed ? ' followed' : ''}" data-star title="${isFollowed ? 'Unfollow' : 'Follow'}">${isFollowed ? '★' : '☆'}</td>
+        <td class="rank-num">${rankStr}</td>
         <td><span class="handle">${handle}</span><span class="real-name">${p.player.best_identifier}</span></td>
         <td class="rec-cell">${p.record}</td>
-        <td class="pts-cell">${p.points}</td>
+        <td class="pts-cell">${pts}</td>
         <td class="omw-cell">${fmtOmw(omw)}</td>
         <td class="tb-cell"><span class="sdot ${active ? 'ok' : 'out'}"></span></td>
       </tr>`;
 
-    if (cut != null && p.rank === cut) {
-      html += `<tr class="cut-line"><td colspan="6"><div class="cut-line-inner">Top ${cut}</div></td></tr>`;
+    if (cut != null && rank === cut) {
+      html += `<tr class="cut-line"><td colspan="7"><div class="cut-line-inner">Top ${cut}</div></td></tr>`;
     }
   }
 
@@ -97,5 +140,14 @@ export function renderStandings() {
       _showTip(tr, omw, gw, ogw);
     });
     tr.addEventListener('mouseleave', _hideTip);
+    tr.querySelector('[data-star]').addEventListener('click', (e) => {
+      e.stopPropagation();
+      const pid = parseInt(tr.dataset.id);
+      const on  = toggleFollowed(S.event.id, pid);
+      e.currentTarget.textContent = on ? '★' : '☆';
+      e.currentTarget.title = on ? 'Unfollow' : 'Follow';
+      e.currentTarget.classList.toggle('followed', on);
+      if (!S.activeId) renderOverview();
+    });
   });
 }

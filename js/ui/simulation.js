@@ -1,7 +1,24 @@
 import S from '../state.js';
 import { $ } from '../utils.js';
-import { projectRank } from '../tournament.js';
 import { getTopCut } from '../services/storage.js';
+import { stateAfterRound, futureSwissRounds, activeIdsAfter, swissRounds } from '../engine/adapter.js';
+import { pactWindow, pactBound } from '../engine/montecarlo.js';
+import { runSimulation } from '../services/simWorker.js';
+import { verdictHtml, pctHtml } from './verdict.js';
+
+// Results cache: the Monte Carlo is deterministic (seeded), so a re-render
+// with the same inputs can reuse the previous numbers.
+const _cache = new Map();
+
+function _cacheKey(pid, roundId, cut) {
+  let confirmed = 0;
+  for (const r of swissRounds()) for (const m of S.matches[r.id] || []) if (m.winning_player != null || m.match_is_bye || m.match_is_intentional_draw || m.match_is_unintentional_draw) confirmed++;
+  return `${S.event?.id}|${roundId}|${pid}|${cut}|${confirmed}`;
+}
+
+function _samplesFor(players) {
+  return Math.max(600, Math.min(2000, Math.round(60000 / Math.max(1, players))));
+}
 
 // ── RENDER: SIM ROUND TABS ───────────────────────
 export function renderSimRoundTabs() {
@@ -40,10 +57,8 @@ export function renderSimulation(pid) {
   const me = standings.find(p => p.id === pid);
   if (!me) return;
 
-  const cut        = getTopCut();
-  const currentPts = me.points;
-  const myOMW      = me.opponent_match_win_percentage ?? 0;
-  const isElim     = round.phase_type !== 'SWISS';
+  const cut    = getTopCut();
+  const isElim = round.phase_type !== 'SWISS';
 
   // Figure out label: what round are we projecting INTO?
   const allWithData = S.rounds.filter(r => r.standings_status === 'GENERATED');
@@ -61,19 +76,12 @@ export function renderSimulation(pid) {
     return;
   }
 
-  // Remaining rounds: derived from position within the Swiss array, not round.round_number,
-  // so it works regardless of how the API numbers rounds across phases.
-  const swissRounds   = S.rounds.filter(r => r.phase_type === 'SWISS');
-  const totalSwiss    = swissRounds.length;
-  const swissPos      = swissRounds.findIndex(r => r.id === round.id); // 0-based index in Swiss
-  // myRemaining  = Swiss rounds left to play AFTER the simulated next one
-  // othersRemaining = Swiss rounds others still play (includes the simulated round itself)
-  const myRemaining     = Math.max(0, totalSwiss - swissPos - 2);
-  const othersRemaining = Math.max(0, totalSwiss - swissPos - 1);
+  const swiss    = swissRounds();
+  const swissPos = swiss.findIndex(r => r.id === round.id);
+  const future   = futureSwissRounds(round.id);
 
-  // If othersRemaining === 0, Swiss is already complete — there is no next round to simulate.
-  // Running win/draw/loss on final standings adds phantom pts and produces nonsense verdicts.
-  if (othersRemaining === 0) {
+  // Swiss already complete — nothing left to simulate.
+  if (future.length === 0) {
     const inCut       = cut && me.rank <= cut;
     const cutLabel    = cut ? ` · Top ${cut}` : '';
     const statusColor = cut ? (inCut ? 'var(--green)' : 'var(--red)') : 'var(--t3)';
@@ -93,59 +101,124 @@ export function renderSimulation(pid) {
     return;
   }
 
-  // On the final Swiss round there are no more rounds after — mayAbove (which uses current pts)
-  // does not model others gaining pts in this round, so SAFE is unreliable. Only LOCKED is real.
-  const isFinalSwiss = myRemaining === 0 && !isElim;
+  const nextSwiss    = swiss[swissPos + 1];
+  const simRoundNum  = nextSwiss ? nextSwiss.round_number : round.round_number + 1;
+  const nextKnown    = !!future[0];
+  const myRemaining  = future.length - 1;
 
-  // DRAW reduces my OMW%: draw opponent also draws, dragging their MWP down.
-  // Mechanic drop: currentOMW * R*(R+2)/(R+1)²
-  // Extra pessimism: in Swiss, late-round draw partners are high-win-rate opponents
-  // whose MWP drop hits your OMW% harder than an average opponent would.
-  const R         = round.round_number;
-  const myOMW_draw = myOMW * R * (R + 2) / ((R + 1) * (R + 1)) * 0.985;
+  // pactBound is cheap (no sampling) — computed up front, not deferred.
+  const state       = stateAfterRound(round.id);
+  const activeIds   = activeIdsAfter(round.id);
+  const inPactWindow = future.length <= pactWindow(swiss.length);
+  const pact = inPactWindow ? pactBound({ state, me: pid, activeIds, futureRounds: future, cut }) : null;
 
-  // The next Swiss round number — used as the row label so "LOSE R4" is unambiguous.
-  const nextSwissRound = swissRounds[swissPos + 1];
-  const simRoundNum    = nextSwissRound ? nextSwissRound.round_number : round.round_number + 1;
+  const pactBanner = pact
+    ? `<div class="sim-pact${pact.pactLocked ? ' locked' : ''}">
+        ${pact.pactLocked
+          ? `✦ Drawing out from here is enough — normal Swiss pairing keeps you at #${pact.rank} worst case.`
+          : `Drawing out from here is not provably enough yet (worst case #${pact.rank} under normal Swiss pairing).`}
+      </div>`
+    : '';
 
-  const scenarios = [
-    { label: 'WIN',  delta: 3, cls: 'win',  scenarioOMW: myOMW      },
-    { label: 'DRAW', delta: 1, cls: 'draw', scenarioOMW: myOMW_draw },
-    { label: 'LOSE', delta: 0, cls: 'loss', scenarioOMW: myOMW      },
-  ];
+  // How much of the "future" below has actually already happened? Two
+  // independent signals:
+  //  - forcedOthersDecided: every OTHER match in R${simRoundNum} itself (the
+  //    round being forced to W/D/L) already has a real result — only YOUR
+  //    pick there is open, so the percentages below are exact against the
+  //    real final field, not a forecast. This is why they land on flat
+  //    0%/100% instead of something in between: there's no real randomness
+  //    left to sample.
+  //  - hindsightRounds: any round AFTER that one where your OWN result is
+  //    already recorded too (reviewing an old round of an event that's
+  //    since moved on) — those get replayed with reality instead of
+  //    sampled. A later round with published pairings but no result yet is
+  //    NOT hindsight — it's still genuinely simulated.
+  const pairKey = (a, b) => `${a}:${b}`;
+  const forced = future[0];
+  const forcedOthersDecided = !!forced && forced.pairs.length > 0 &&
+    forced.pairs.filter(([a, b]) => a !== pid && b !== pid).every(([a, b]) => forced.locked[pairKey(a, b)]);
 
-  $('sim-rows').innerHTML = scenarios.map(({ label, delta, cls, scenarioOMW }) => {
-    const projPts                        = currentPts + delta;
-    const { best, worst, absoluteWorst } = projectRank(pid, projPts, scenarioOMW, standings, myRemaining, othersRemaining);
+  const hindsightRounds = [];
+  for (let i = 1; i < future.length; i++) {
+    const known = future[i];
+    const myResultLocked = known && Object.keys(known.locked).some(key => {
+      const [a, b] = key.split(':').map(Number);
+      return a === pid || b === pid;
+    });
+    if (myResultLocked) hindsightRounds.push(swiss[swissPos + 1 + i].round_number);
+  }
 
-    let verdictHtml = '';
-    if (cut) {
-      if (best > cut)                         verdictHtml = `<span class="sim-verdict out">✗ OUT</span>`;
-      else if (absoluteWorst <= cut)          verdictHtml = `<span class="sim-verdict lock">✦ LOCKED</span>`;
-      else if (worst <= cut && !isFinalSwiss) verdictHtml = `<span class="sim-verdict safe">✓ SAFE</span>`;
-      else                                    verdictHtml = `<span class="sim-verdict risk">⚠ RISKY</span>`;
-    } else {
-      verdictHtml = `<span class="sim-verdict nocut">—</span>`;
-    }
-
-    const rankText = best === absoluteWorst ? `#${best}` : `#${best}–${absoluteWorst}`;
-
-    return `
-      <div class="sim-row ${cls}">
-        <div class="sim-lbl">${label}<span class="sim-rnum">R${simRoundNum}</span></div>
-        <div class="sim-delta">+${delta}</div>
-        <div class="sim-pts">${projPts}</div>
-        <div class="sim-rank">${rankText}</div>
-        <div>${verdictHtml}</div>
+  let hindsightBanner = '';
+  if (hindsightRounds.length) {
+    hindsightBanner = `<div class="sim-hindsight">
+        ⏱ R${hindsightRounds.join(', R')} ${hindsightRounds.length > 1 ? 'have' : 'has'} already been played.
+        These numbers reuse your <strong>real</strong> result${hindsightRounds.length > 1 ? 's' : ''} in
+        ${hindsightRounds.length > 1 ? 'those rounds' : 'that round'}${forcedOthersDecided ? `, and everyone else's R${simRoundNum} result is real too` : ''} —
+        only R${simRoundNum} below is the actual hypothetical being tested. This isn't a live forecast of what could
+        still happen.
       </div>`;
-  }).join('');
+  } else if (forcedOthersDecided) {
+    hindsightBanner = `<div class="sim-hindsight">
+        ⏱ R${simRoundNum} has already been played for everyone else. Only your own pick here is hypothetical,
+        so these percentages are exact against the real final field — not a forecast of what could still happen.
+      </div>`;
+  }
 
-  const cutLine   = cut ? ` · Top ${cut} cut` : ' · No cut configured';
-  const roundsCtx = isFinalSwiss
-    ? ' · Final round — only LOCKED is reliable (others also play this round)'
-    : myRemaining > 0
-      ? ` · ${myRemaining} round${myRemaining > 1 ? 's' : ''} remaining after R${simRoundNum}`
-      : '';
-  $('sim-note').textContent =
-    `R${round.round_number} standings · ${standings.length} players${cutLine}${roundsCtx} · DRAW lowers OMW% estimate`;
+  // Placeholder rows while the Monte Carlo runs (it is synchronous; let the UI paint first).
+  const scenarios = [
+    { key: 'W', label: 'WIN',  delta: 3, cls: 'win'  },
+    { key: 'D', label: 'DRAW', delta: 1, cls: 'draw' },
+    { key: 'L', label: 'LOSE', delta: 0, cls: 'loss' },
+  ];
+  const spinner = `<span class="sim-spinner"></span>`;
+  const rowHtml = (sc, res) => `
+    <div class="sim-row ${sc.cls}">
+      <div class="sim-lbl">${sc.label}<span class="sim-rnum">R${simRoundNum}</span></div>
+      <div class="sim-delta">+${sc.delta}</div>
+      <div class="sim-pts">${me.points + sc.delta}</div>
+      <div class="sim-prob">${res ? pctHtml(res, cut) : spinner}</div>
+      <div class="sim-rank">${res ? (res.p5 === res.p95 ? `#${res.p5}` : `#${res.p5}–${res.p95}`) : ''}</div>
+      <div>${res ? verdictHtml(res, cut) : ''}</div>
+    </div>`;
+
+  $('sim-rows').innerHTML = hindsightBanner + pactBanner + scenarios.map(sc => rowHtml(sc, null)).join('');
+
+  const cutLine  = cut ? ` · Top ${cut} cut` : ' · No cut configured';
+  const pairLine = nextKnown ? ` · R${simRoundNum} pairings known` : ` · R${simRoundNum} pairings simulated`;
+  const unknownAfter = myRemaining - hindsightRounds.length;
+  const roundsCtx = myRemaining > 0
+    ? (hindsightRounds.length
+        ? ` · ${myRemaining} round${myRemaining > 1 ? 's' : ''} after R${simRoundNum}: R${hindsightRounds.join(',')} already played, ${unknownAfter} simulated`
+        : ` · ${myRemaining} round${myRemaining > 1 ? 's' : ''} after R${simRoundNum} simulated`)
+    : ` · final Swiss round`;
+  $('sim-note').textContent = `R${round.round_number} standings · ${standings.length} players${cutLine}${pairLine}${roundsCtx} · computing…`;
+
+  const stillCurrent = () => S.activeId === pid && S.simRound === round.id && getTopCut() === cut;
+
+  const renderResults = results => {
+    $('sim-rows').innerHTML = hindsightBanner + pactBanner + scenarios.map(sc => rowHtml(sc, results[sc.key])).join('');
+    const n = results.W.samples;
+    const cutPts = cut && results.D.cutPtsMedian != null ? ` · typical cut line ${results.D.cutPtsMedian} pts` : '';
+    const pactCaveat = pact ? ` · DRAW's % doesn't yet model everyone else pacting too — the pact banner above is the exact answer` : '';
+    $('sim-note').textContent =
+      `R${round.round_number} standings · ${standings.length} players${cutLine}${pairLine}${roundsCtx} · ${n} samples · rank = 5th–95th percentile${cutPts}${pactCaveat}`;
+  };
+
+  const key = _cacheKey(pid, round.id, cut);
+  const cached = _cache.get(key);
+  if (cached) { renderResults(cached); return; }
+
+  const run = () => {
+    if (!stillCurrent()) return; // the user moved on while we waited for the paint
+    runSimulation({ state, me: pid, activeIds, futureRounds: future, cut, samples: _samplesFor(standings.length) })
+      .then(results => {
+        _cache.set(key, results);
+        if (stillCurrent()) renderResults(results);
+      })
+      .catch(err => {
+        if (stillCurrent()) $('sim-note').textContent = `Simulation failed: ${err.message}`;
+      });
+  };
+
+  setTimeout(run, 0);
 }

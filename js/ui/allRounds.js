@@ -1,6 +1,7 @@
 import S from '../state.js';
 import { $, fmtOmw } from '../utils.js';
 import { getTopCut } from '../services/storage.js';
+import { projectRound } from '../engine/adapter.js';
 
 let _viewRound = null;
 
@@ -50,7 +51,7 @@ function _render(el) {
       <span class="panel-label">Standings</span>
       <div class="round-tabs">${tabsHtml}</div>
     </div>
-    ${isLive ? `<div class="ar-live-note">Projected from locked results · pending matches shown as <em>~rank?</em></div>` : ''}
+    ${isLive ? `<div class="ar-live-note">Projected from locked results · tiebreakers recomputed · pending matches shown as <em>~rank?</em></div>` : ''}
     <div class="ar-scroll">${bodyHtml}</div>`;
 
   el.querySelectorAll('.rtab[data-rid]').forEach(btn => {
@@ -135,12 +136,12 @@ function _renderProjected(roundId, cut) {
     const handle  = p.user_event_status?.best_identifier || p.player?.best_identifier || '?';
     const sel     = p.id === S.activeId;
     const inCut   = cut != null && p.projRank <= cut;
-    const ptsStr  = p.points === p.projPts ? `${p.projPts}` : `${p.points}→${p.projPts}`;
+    const ptsStr  = p.points == null || p.points === p.projPts ? `${p.projPts}` : `${p.points}→${p.projPts}`;
 
     let deltaCls = '', deltaStr = '—';
     if (p.unknown) {
       deltaStr = '?';
-    } else {
+    } else if (p.rank != null) {
       const d = p.rank - p.projRank;
       if (d > 0)      { deltaCls = 'ar-delta-up';   deltaStr = `↑${d}`; }
       else if (d < 0) { deltaCls = 'ar-delta-down'; deltaStr = `↓${Math.abs(d)}`; }
@@ -161,49 +162,7 @@ function _renderProjected(roundId, cut) {
   return html;
 }
 
+// Exact projection from locked API results (tiebreakers recomputed, see js/engine).
 function _computeProjectedFromLocked(roundId) {
-  const idx = S.rounds.findIndex(r => r.id === roundId);
-  let base = [];
-  for (let i = idx; i >= 0; i--) {
-    if (S.rounds[i].standings_status === 'GENERATED') {
-      base = S.standings[S.rounds[i].id] || [];
-      break;
-    }
-  }
-
-  const matches = S.matches[roundId] || [];
-  const ptMap = {}, omwMap = {};
-  for (const p of base) {
-    ptMap[p.id]  = p.points;
-    omwMap[p.id] = p.opponent_match_win_percentage ?? 0;
-  }
-
-  const unpicked = new Set();
-  for (const match of matches) {
-    const [p1, p2] = match.players || [];
-    const isBye  = match.match_is_bye;
-    const isDraw = match.match_is_intentional_draw || match.match_is_unintentional_draw;
-    const hasWin = match.winning_player != null;
-
-    if (isBye || isDraw || hasWin) {
-      if (isBye) {
-        if (p1 != null && p1 in ptMap) ptMap[p1] += 3;
-      } else if (isDraw) {
-        if (p1 != null && p1 in ptMap) ptMap[p1] += 1;
-        if (p2 != null && p2 in ptMap) ptMap[p2] += 1;
-      } else {
-        const winner = match.players?.[0] === match.winning_player ? p1 : p2;
-        if (winner != null && winner in ptMap) ptMap[winner] += 3;
-      }
-    } else {
-      if (p1 != null) unpicked.add(p1);
-      if (p2 != null) unpicked.add(p2);
-    }
-  }
-
-  const sorted = base
-    .map(p => ({ ...p, projPts: ptMap[p.id] ?? p.points, unknown: unpicked.has(p.id) }))
-    .sort((a, b) => b.projPts - a.projPts || (omwMap[b.id] ?? 0) - (omwMap[a.id] ?? 0));
-
-  return sorted.map((p, i) => ({ ...p, projRank: i + 1 }));
+  return projectRound(roundId, {});
 }

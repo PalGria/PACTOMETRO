@@ -80,19 +80,3 @@ export function buildHistory(pid) {
   }
   return history;
 }
-
-// ── PROJECT RANK ─────────────────────────────────
-export function projectRank(pid, projPts, myOMW, allStandings, myRemaining, othersRemaining) {
-  const myCeiling = projPts + myRemaining * 3;
-  let defAbove = 0, mayAbove = 0, absAbove = 0;
-  for (const p of allStandings) {
-    if (p.id === pid) continue;
-    const P   = p.points;
-    const omw = p.opponent_match_win_percentage ?? 0;
-    if (P > myCeiling)                                              defAbove++;
-    if (P > projPts || (P === projPts && omw > myOMW))             mayAbove++;
-    // >= not >: a player who ends tied with me in pts could rank above via tiebreakers
-    if (P + othersRemaining * 3 >= projPts)                        absAbove++;
-  }
-  return { best: defAbove + 1, worst: mayAbove + 1, absoluteWorst: absAbove + 1 };
-}

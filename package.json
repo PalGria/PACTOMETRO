@@ -1,0 +1,10 @@
+{
+  "name": "pactometro",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "validate": "node scripts/validate-engine.mjs",
+    "smoke": "node scripts/smoke-ui.mjs",
+    "test": "node scripts/validate-engine.mjs && node scripts/smoke-ui.mjs"
+  }
+}

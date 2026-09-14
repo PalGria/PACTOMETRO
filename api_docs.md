@@ -188,12 +188,8 @@ GET https://api.cloudflare.ravensburgerplay.com/hydraproxy/api/v2/tournament-rou
 
 **Query params:** `page`, `page_size` (same as standings)
 
-Also available non-paginated (returns full round object with `matches[]` array):
-```
-GET .../tournament-rounds/{round_id}/matches/
-```
-
-> Note: `/pairings/` and `/pairings/paginated/` return 404 — matches is the correct endpoint.
+> Note: `/pairings/`, `/pairings/paginated/` and the non-paginated `/matches/` return errors (checked 2026-09-13) — the paginated matches endpoint is the only working one.
+> `page_size` is capped at 1000 by the server (larger values are silently reduced). Always follow `next_page_number` for bigger fields.
 
 ### Per-match object (`results[]`)
 

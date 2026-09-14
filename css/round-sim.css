@@ -253,7 +253,23 @@
 .proj-delta.down { color: var(--red); }
 .proj-delta.same { color: var(--t3); }
 
+.proj-pcut {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: .7rem;
+  text-align: right;
+  white-space: nowrap;
+}
+.proj-pcut-val.good { color: var(--green); }
+.proj-pcut-val.mid  { color: var(--yellow); }
+.proj-pcut-val.bad  { color: var(--red); }
+
 .proj-cut-line td { padding: 0; border: none; }
+
+/* ── OVERVIEW MODE — own tab now, not the "nobody selected"
+   fallback of Analysis. #d-overview only ever shows here. ── */
+.board.overview-mode #d-placeholder,
+.board.overview-mode #d-content { display: none !important; }
+.board.overview-mode #d-overview { display: flex !important; }
 
 /* ── POOL MODE ───────────────────────────────────── */
 .board.pool-mode #d-placeholder,

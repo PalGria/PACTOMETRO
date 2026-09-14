@@ -24,14 +24,19 @@ export function restoreTopCut() {
   $('top-cut-input').disabled = noCut;
 }
 
+// The cache holds the last server bundle so a reopened tab paints instantly;
+// the live poller then fetches only if the server has a newer version.
 export function saveCache(eventId) {
   try {
     localStorage.setItem(`pm_cache_${eventId}`, JSON.stringify({
-      event:     S.event,
-      rounds:    S.rounds,
-      standings: S.standings,
-      matches:   S.matches,
-      savedAt:   Date.now(),
+      event:      S.event,
+      rounds:     S.rounds,
+      standings:  S.standings,
+      matches:    S.matches,
+      version:    S.version,
+      updated_at: S.updatedAt,
+      finished:   S.finished,
+      savedAt:    Date.now(),
     }));
   } catch(e) {
     // localStorage quota exceeded — skip silently
@@ -49,9 +54,15 @@ export function loadCache(eventId) {
   }
 }
 
-export function applyCache(cached) {
-  S.event     = cached.event;
-  S.rounds    = cached.rounds;
-  S.standings = cached.standings;
-  S.matches   = cached.matches;
+// ── FOLLOWED PLAYERS (per event) ─────────────────
+export function getFollowed(eventId) {
+  try { return JSON.parse(localStorage.getItem(`pm_followed_${eventId}`) || '[]'); }
+  catch(e) { return []; }
+}
+
+export function toggleFollowed(eventId, playerId) {
+  const set = new Set(getFollowed(eventId));
+  set.has(playerId) ? set.delete(playerId) : set.add(playerId);
+  try { localStorage.setItem(`pm_followed_${eventId}`, JSON.stringify([...set])); } catch(e) {}
+  return set.has(playerId);
 }

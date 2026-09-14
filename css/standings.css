@@ -51,7 +51,11 @@
 .rtab.on    { background: var(--blue); color: #0b0e16; border-color: var(--blue); }
 .rtab.live  { border-color: var(--yellow); color: var(--yellow); }
 
-.standings-scroll { flex: 1; overflow-y: auto; }
+/* min-height:0 overrides the flex default of min-height:auto (content size),
+   which otherwise stops this from shrinking below the full roster's height —
+   the panel would grow past its box and get clipped by .standings'
+   overflow:hidden instead of actually scrolling. */
+.standings-scroll { flex: 1; min-height: 0; overflow-y: auto; }
 
 .s-table {
   width: 100%;
@@ -94,8 +98,18 @@
   width: 28px;
 }
 
-.handle    { font-weight: 600; font-size: .82rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 120px; display: block; }
-.real-name { font-size: .66rem; color: var(--t3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 120px; display: block; }
+.star-cell {
+  width: 18px;
+  cursor: pointer;
+  text-align: center;
+  font-size: .8rem;
+  color: var(--t3);
+}
+.star-cell:hover      { color: var(--yellow); }
+.star-cell.followed   { color: var(--yellow); }
+
+.handle    { font-weight: 600; font-size: .82rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 170px; display: block; }
+.real-name { font-size: .66rem; color: var(--t3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 170px; display: block; }
 .rec-cell  { font-family: 'JetBrains Mono', monospace; font-size: .75rem; color: var(--t2); white-space: nowrap; }
 .pts-cell  { font-family: 'JetBrains Mono', monospace; font-size: .82rem; font-weight: 700; }
 
@@ -218,6 +232,65 @@
   width: 13px; height: 13px;
   cursor: pointer;
 }
+
+/* ── PLAYER SEARCH ────────────────────────────────── */
+/* Lives in the roster table's header, next to the star column. */
+.search-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--t3);
+  font-size: .78rem;
+  cursor: pointer;
+  line-height: 1;
+  transition: color .15s;
+}
+.search-btn:hover, .search-btn.on { color: var(--blue); }
+
+/* [hidden] already means display:none — this only adds the flex layout
+   for the moment it's shown, instead of overriding the attribute outright
+   (a plain `.search-bar { display: flex }` would always win over [hidden],
+   since both have equal specificity and this rule loads later). */
+.search-bar { display: none; }
+.search-bar:not([hidden]) {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  padding: .5rem .85rem;
+  border-bottom: 1px solid var(--b);
+  background: var(--bg);
+}
+
+.search-input {
+  flex: 1;
+  min-width: 0;
+  background: var(--card);
+  border: 1px solid var(--b2);
+  border-radius: 6px;
+  padding: .4rem .65rem;
+  color: var(--t1);
+  font-size: .78rem;
+  outline: none;
+  transition: border-color .15s;
+}
+.search-input:focus { border-color: var(--blue); }
+.search-input::placeholder { color: var(--t3); }
+
+.search-clear-btn { display: none; }
+.search-clear-btn:not([hidden]) {
+  flex-shrink: 0;
+  width: 22px; height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: var(--t3);
+  font-size: .68rem;
+  cursor: pointer;
+}
+.search-clear-btn:hover { color: var(--red); }
 
 /* cut line in table */
 .cut-line td {

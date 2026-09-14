@@ -8,6 +8,9 @@ const S = {
   simRound:   null, // round_id used for the simulation panel
   activeId:   null,
   omwRange:   null,
+  version:    null, // server bundle version (content hash)
+  updatedAt:  null, // epoch seconds of the last upstream change
+  finished:   false,
 };
 
 export default S;

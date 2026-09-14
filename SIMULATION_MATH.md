@@ -1,174 +1,151 @@
 # Simulation Math
 
-Pactometro has two simulation features: the **Player Simulation** (per-player cut projection) and the **Round Simulator** (full-field projected standings). This document explains the math behind both.
+Pactometro has two simulation features: the **Player Simulation** (per-player cut projection) and the **Round Simulator** (full-field projected standings). Both run on the exact Swiss engine in `js/engine/`. Everything below is verified against real API data by `npm test` (`scripts/validate-engine.mjs`, fixture `test/fixtures/event-515727`).
 
 ---
 
-## 1. Points system
+## 1. Points and tiebreakers (verified)
 
-Disney Lorcana Swiss rounds use standard tournament points:
+| Result | Points |
+|--------|--------|
+| Win    | 3      |
+| Draw   | 1      |
+| Loss   | 0      |
+| Bye    | 3 (counts as a 2-0 win) |
 
-| Result | Points gained |
-|--------|--------------|
-| Win    | +3           |
-| Draw   | +1           |
-| Loss   | +0           |
+Tiebreakers in order: **OMW%**, **GW%**, **OGW%**. The API rounds each to 8 decimals before comparing; exact ties are ordered arbitrarily.
 
-Tiebreakers, in order of priority:
-1. **OMW%** — Opponent Match Win percentage
-2. **GW%** — Game Win percentage
-3. **OGW%** — Opponent Game Win percentage
+```
+MWP(p)  = (3·W + D) / (3·M)              W includes byes, M = matches incl. byes
+OMW%(p) = mean over real opponents of max(0.33, MWP(opp))
+          byes are not opponents; no opponents → 0.33
+GW%(p)  = max(0.33, (3·GW + GD) / (3·G))  a bye adds GW += 2, G += 2
+OGW%(p) = mean over real opponents of GW%(opp); no opponents → 0.33
+```
+
+Notes learned from the data:
+- The floor is `0.33`, not `1/3`. A player at 0-0-1 has MWP 0.3333 (above the floor), a player at 0-1 has 0.33.
+- An intentional draw is stored as `games_drawn = 3`, an unintentional draw as `games_drawn = 1` (plus any games actually won). Both count 1 match point.
+- `registration_status` reflects the *current* status, so a finished event shows everyone as `ELIMINATED`. Active players for future rounds are taken from the next published pairings when available.
+
+Implementation: `computeTiebreaks`, `rankPlayers`, `compareRows` in `js/engine/swiss.js`.
 
 ---
 
-## 2. Player Simulation
+## 2. Round Simulator and live projections
 
-Given a player's current standings after round R, the simulation projects how their rank would look after round R+1 for each of the three possible outcomes.
+`projectRound(roundId, picks)` in `js/engine/adapter.js`:
 
-### 2.1 Projected points
+1. Build the engine state from every confirmed Swiss result of rounds **before** `roundId`.
+2. Apply the API results of `roundId` (locked) and the user's picks for pending tables.
+3. Recompute all four keys and sort.
 
-```
-projPts = currentPts + delta
-```
-
-Where `delta` is 3 (win), 1 (draw), or 0 (loss).
-
-### 2.2 Remaining rounds
-
-The simulation is always grounded in the Swiss phase structure, not raw round numbers. This matters when a tournament has multiple phases (e.g. Swiss → Top 8) where round numbering resets.
-
-```
-swissPos       = zero-based index of the selected round within the Swiss phase
-myRemaining    = totalSwissRounds - swissPos - 2   (rounds I still play after R+1)
-othersRemaining = totalSwissRounds - swissPos - 1  (rounds everyone else plays, including R+1)
-```
-
-`myRemaining` is what I can still gain after the simulated round.  
-`othersRemaining` is what my opponents can still gain — this is the key asymmetry that produces rank bounds.
-
-### 2.3 Rank bounds
-
-For a given projected scenario, `projectRank` scans all other players' current standings and classifies each one into three counters:
-
-```
-myCeiling = projPts + myRemaining × 3   (maximum points I can ever reach)
-
-defAbove  = players with P > myCeiling
-mayAbove  = players with P > projPts, OR (P == projPts AND their OMW% > mine)
-absAbove  = players with P + othersRemaining × 3 >= projPts
-```
-
-These produce three rank estimates:
-
-| Bound          | Formula           | Meaning                                                              |
-|----------------|-------------------|----------------------------------------------------------------------|
-| **Best case**  | `defAbove + 1`    | Players I cannot mathematically catch; I beat everyone else          |
-| **Likely worst** | `mayAbove + 1`  | Players currently ahead of me in points or tiebreakers               |
-| **Absolute worst** | `absAbove + 1` | Players who could still reach my points by winning every remaining round |
-
-The displayed rank range is `#best – #absoluteWorst`.
-
-> **Why two different "worst"?** `mayAbove` uses the current standings snapshot (no future rounds modelled), so it underestimates how far others can climb — especially on the final Swiss round when everyone still has a match to play. `absAbove` is the true ceiling of how bad things can get.
-
-### 2.4 OMW% adjustment for draws
-
-A draw does not just reduce your points — it also lowers your OMW%. When you draw with an opponent, that opponent's own match win percentage drops slightly (they now have a draw on their record), which pulls down your opponent average.
-
-The formula used:
-
-```
-OMW_draw = OMW_current × R(R + 2) / (R + 1)² × 0.985
-```
-
-Where R is the current round number.
-
-**Derivation intuition:**  
-Before round R+1, your OMW is the average MWP over R opponents. After the draw your OMW becomes an average over R+1 opponents, including your draw partner. The draw partner's MWP drops because of the draw itself. Assuming the partner's MWP is similar to yours:
-
-```
-OMW_new ≈ (R × OMW_current + partner_MWP_after_draw) / (R + 1)
-```
-
-The factor `R(R+2) / (R+1)²` captures this dilution. It is always less than 1 and approaches 1 as R grows, meaning:
-
-- Early rounds (R=1): draw drops OMW by ~25%
-- Mid rounds (R=5): drop is ~2.8%
-- Late rounds (R=9): drop is ~1%
-
-The additional `× 0.985` is a calibration constant: in Swiss, late-round opponents are typically high win-rate players (Swiss pairing bias), so the MWP drop from the draw partner hits harder than the symmetric model predicts.
-
-The WIN and LOSS scenarios leave OMW unchanged because a win opponent's record is not affected, and the loss opponent won — their MWP goes up, but that actually helps you, so the model conservatively holds OMW flat.
-
-### 2.5 Verdicts
-
-After computing `best`, `worst`, and `absoluteWorst` against the configured top-cut threshold:
-
-| Verdict    | Condition                            | Meaning                                                    |
-|------------|--------------------------------------|------------------------------------------------------------|
-| **OUT**    | `best > cut`                         | Even your best-case rank is outside the cut                |
-| **LOCKED** | `absoluteWorst <= cut`               | You make cut regardless of all remaining match results     |
-| **SAFE**   | `worst <= cut` (not final round)     | You're in under current standings; tiebreakers would need to go against you badly to miss |
-| **RISKY**  | everything else                      | On the bubble — cut is achievable but not guaranteed       |
-
-> **SAFE is suppressed on the final Swiss round.** On the last round everyone still plays, so `mayAbove` (which uses current point totals) underestimates how many players can jump above you. Only LOCKED is reliable when `othersRemaining == 1`.
+With every table decided the projected table is exact, including tiebreakers, because the whole opponent graph is known. Players with an undecided table are flagged `unknown`. The `Δ` column compares the projected rank with the rank in the latest generated standings before the round.
 
 ---
 
-## 3. Round Simulator
+## 3. Player Simulation
 
-The Round Simulator lets you assign outcomes to individual matches and immediately see projected standings for the whole field.
+For the selected standings round R and each scenario for my next match (WIN / DRAW / LOSE), the app reports:
 
-### 3.1 Base standings
+- **P(cut)** — probability of finishing the Swiss inside the top cut, from a Monte Carlo of the remaining rounds (`js/engine/montecarlo.js`).
+- **Rank band** — 5th to 95th percentile of my final Swiss rank across samples.
+- **Deterministic verdicts** — LOCKED / OUT are proven, not sampled.
 
-The simulator needs a starting point. It finds the nearest completed standings round at or before the selected round:
+### 3.1 Sampling one future
 
-```
-base = most recent round where standings_status == 'GENERATED' and round_index <= selected
-```
+For each sample:
 
-This matters when simulating a live round that has not yet produced official standings — the base is the previous round's final standings.
+1. Start from the confirmed state after round R.
+2. For the next round: if its pairings are published, use them and the results already reported; otherwise simulate Swiss pairings (`js/engine/pairing.js`: sort by points, random order within a bracket, pair top-down avoiding rematches, bye to the lowest player without one).
+3. Force my result according to the scenario. Draw is recorded as an intentional draw (3 drawn games); a win as 2-0 or 2-1.
+4. Every other table: intentional draw with probability `pIdraw = 0.9` if **both players are locked into the cut with a draw** (final round only, see 3.3); otherwise unintentional draw with probability `pDraw = 0.04`, else a 50/50 win.
+5. Later rounds: simulated pairings, same outcome model.
+6. Recompute the full standings and record my rank.
 
-### 3.2 Points projection
+Default 2000 samples with a fixed seed, so re-rendering does not change the numbers. Standard error at P = 0.5 is about ±1.1 points.
 
-For each match, the simulator applies the picked outcome to the base point totals:
-
-```
-Win  → winner.pts += 3
-Draw → both.pts   += 1
-Loss → no change
-```
-
-Matches with locked server results (already reported by the API) are applied automatically and cannot be changed.
-
-### 3.3 Ranking
-
-After applying all picked outcomes, players are sorted by:
-
-1. Projected points (descending)
-2. OMW% from the base standings (descending) — as a tiebreaker estimate
-
-OMW% is not recomputed from the simulated results because OMW depends on the full recursive graph of all opponents' records, which cannot be recalculated without fetching every opponent's history. The base OMW% is a reasonable proxy for relative tiebreaker ordering within a points tier.
-
-### 3.4 Rank delta
-
-The displayed `Δ` column compares each player's projected rank to their rank in the base standings:
+### 3.2 Deterministic bounds
 
 ```
-Δ = base_rank - projected_rank   (positive = moved up, negative = moved down)
+projPts   = myPts + delta                 delta = 3 / 1 / 0
+myCeiling = projPts + 3 · roundsAfterNext
+best      = 1 + #{others with pts > myCeiling}
+OUT       = best > cut
 ```
 
-Players with at least one unpicked match show `?` since their result is unknown.
+`absoluteWorst` counts players who can finish with **≥ projPts** (ties against me):
+
+- Final round with published pairings: per table, the maximum over {A wins, B wins, draw} of players reaching projPts; my opponent gets 0 / 1 / 3 depending on the scenario; the bye player +3; unpaired (dropped) players keep their points. Exact up to tiebreakers.
+- Otherwise: every active player is assumed to gain 3 per remaining round (loose bound).
+
+```
+LOCKED = absoluteWorst <= cut
+```
+
+A row can be 100 % in the Monte Carlo and still not LOCKED: that means the cut depends on tiebreakers going the expected way.
+
+### 3.3 Rational intentional draws
+
+In the final round, a player X paired at table T is "locked with a draw" if, with X at pts+1 and X's partner at pts+1, the number of other players who can reach ≥ pts+1 (per-table maxima as in 3.2) is below the cut. When both players at a table are locked with a draw they ID with probability 0.9. Measured on event 515727: 5 of the 12 final-round matches were draws (3 intentional).
+
+### 3.4 Verdict bands (UI)
+
+| Verdict | Condition |
+|---|---|
+| OUT | `best > cut` (proven) |
+| LOCKED | `absoluteWorst <= cut` (proven) |
+| SAFE | P(cut) ≥ 95 % |
+| LIKELY | 60 % ≤ P < 95 % |
+| RISKY | 20 % ≤ P < 60 % |
+| UNLIKELY | P < 20 % |
 
 ---
 
-## 4. All Rounds Standings (matrix view)
+## 4. Pacts ("pactar": drawing out the rest of the event)
 
-The Standings tab shows every player's rank across all completed rounds as a matrix, plus a projected column for the current live round.
+Swiss tournaments pair players with matching records against each other. That means, near the end of an event, a group of players tied on points will keep playing *each other*, not the rest of the field — so at most half of any such group can actually pick up a full win in a given round. This is the basis for a second, tighter bound than section 3.2's `absoluteWorst`, which pessimistically assumes *every* rival could win every remaining round.
 
-The live-round projection uses the same base-standings + locked-results logic as the Round Simulator (section 3), but without user picks — only API-confirmed match results are applied. Players with pending matches get a `~N?` annotation indicating the rank is an estimate.
+### 4.1 Pact window
 
-Color coding:
+Drawing out is only a meaningful, provable plan near the end of a long-enough event:
 
-- **Green cell** — rank improved compared to the previous round (number went down)
-- **Red cell** — rank worsened compared to the previous round
-- **Italic cell** — projected, not yet official
+```
+pactWindow(totalSwissRounds):
+  < 4 rounds  → 0 (never)
+  4–7 rounds  → 2
+  ≥ 8 rounds  → 3
+```
+
+### 4.2 Pact bound
+
+`pactBound` computes the worst-case rank for a player (real or hypothetical, via `basePts`) who draws every one of the `k` remaining rounds, under standard Swiss pairing:
+
+```
+T = myPts + k                      (draws out: +1 per remaining round)
+```
+
+- **Round 0**, if pairings are published: exact per real table. My own table is a forced draw (my opponent gets +1). Every other table's three possible outcomes (W1/W2/draw) are tried and whichever sends the most players toward `T` is kept — the same per-table-maximum idea as section 3.2, just also allowing a draw to push *both* players over the line at once, which a decisive result cannot.
+- **Every round after that** (or all `k` rounds, if no pairings are published yet): players tied on points are grouped, and each round `ceil(group size / 2)` of the group is allowed a win while the rest only draw or lose — repeated round by round. This is a safe upper bound, not a simulation: real Swiss software may split a group differently, but never lets more than that many players win out of a fully-tied group.
+- Dropped players keep their current points forever.
+
+```
+pactLocked = cut != null && rank <= cut
+```
+
+`pactLocked` is proven **conditional on the event pairing by record as Swiss tournaments normally do** — unlike `LOCKED` (section 3.2), which holds under *any* pairing whatsoever. The UI labels the two differently for exactly this reason. At `k = 1` (the true final round, pairings known), `pactBound` reduces to exactly the same arithmetic as `deterministicBounds` with `scenario: 'D'` — verified to agree on real data in `scripts/smoke-ui.mjs`.
+
+`pactSet` runs `pactBound` for every player near the top of the field and returns the ones already locked in purely by drawing out — the "pact watch" list shown on the overview dashboard once the event enters the pact window.
+
+Measured on event 515727: after round 3 (2 Swiss rounds left, Top 8), the two players tied for the lead at 9 points were both pact-locked — and both went on to finish #1 and #2 after drawing out the rest of the event.
+
+---
+
+## 5. Known approximations
+
+- Pairings beyond the next round are simulated; the real algorithm may pair differently inside a bracket.
+- Win probability is 50/50. Swiss pairs similar records, so player strength changes little; see the plan (`docs/SIMULATION_PLAN.md`, phase 5).
+- Intentional draws are modelled only when strictly rational.
+- Drops are unknown until the next pairings are published.
+- `pactBound`'s group relaxation (rounds beyond the first) is a safe upper bound, not the tightest possible one — it can occasionally say "not yet pact-locked" a round before a sharper analysis would; it never says "locked" incorrectly.
+- Pact detection assumes the event pairs by record the normal Swiss way; a tournament that pairs differently (e.g. fully random) could let more players climb than `pactBound` allows for.

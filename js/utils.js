@@ -11,6 +11,8 @@ export function playerColor(id) {
 }
 
 export function extractEventId(raw) {
-  const m = raw.match(/events\/(\d+)/);
-  return m ? m[1] : null;
+  const s = String(raw ?? '').trim();
+  const m = s.match(/events\/(\d+)/);
+  if (m) return m[1];
+  return /^\d+$/.test(s) ? s : null;
 }
