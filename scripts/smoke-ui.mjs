@@ -39,7 +39,7 @@ els['no-cut-cb'] = mk('no-cut-cb');
 const { default: S } = await import('../js/state.js');
 const { projectRound, validateLoadedEvent, futureSwissRounds, activeIdsAfter, stateAfterRound, defaultViewRound } = await import('../js/engine/adapter.js');
 const { tierBounds, deterministicBounds, pactWindow, pactBound, pactSet, simulatePendingRound } = await import('../js/engine/montecarlo.js');
-const { renderSimulation } = await import('../js/ui/simulation.js');
+const { renderSimulation, getScenarioResults } = await import('../js/ui/simulation.js');
 const { renderStandings, setSearchQuery } = await import('../js/ui/standings.js');
 
 S.event = event;
@@ -267,7 +267,7 @@ S.matches[r5.id] = savedR5;
 // calculator, Top-N snapshot, and the followed-players panel — renders
 // without crashing and shows the expected pieces.
 {
-  const { renderOverview } = await import('../js/ui/overview.js');
+  const { renderOverview, followedColorClass } = await import('../js/ui/overview.js');
   renderOverview();
   const ovHtml = els['ov-root'].innerHTML;
   check(ovHtml.includes('Top cut') && ovHtml.includes('Calculator') && ovHtml.includes('Bracket'),
@@ -275,6 +275,19 @@ S.matches[r5.id] = savedR5;
   check(ovHtml.includes('~Players'), 'renderOverview(): static cut table (default sub-tab) has the expected-count column');
   check(/Top \d+/.test(ovHtml), 'renderOverview(): top-N panel title shows a cut size');
   check(ovHtml.includes('Followed players'), 'renderOverview(): followed players panel present');
+
+  // followedColorClass: the gold/green/red tiers for the Followed Players
+  // rank number, against three real R4 records (Top 8 cut, R5 the only
+  // round left) — a pact-locked leader, a player only safe by winning, and
+  // one already mathematically out.
+  const r4sorted = [...standings[r4.id]].sort((a, b) => a.rank - b.rank);
+  const leader = r4sorted[0], midpack = r4sorted[4], last = r4sorted.at(-1);
+  const [leaderRes, midRes, lastRes] = await Promise.all(
+    [leader, midpack, last].map(p => getScenarioResults(p.id, r4.id, 8)));
+  check(followedColorClass(leaderRes) === 'ov-rank-locked', 'followedColorClass(): pact-locked leader (drawing out is enough) is gold');
+  check(followedColorClass(midRes) === 'ov-rank-safe', 'followedColorClass(): safe-only-by-winning mid-pack player is green');
+  check(followedColorClass(lastRes) === 'ov-rank-out', 'followedColorClass(): mathematically-out last place is red');
+  check(followedColorClass(null) === '', 'followedColorClass(): no simulation (e.g. Swiss over) leaves the default color');
 }
 
 // 14. buildBracket(): the fixture actually ran a Top 8 (quarterfinals →
@@ -298,6 +311,37 @@ S.matches[r5.id] = savedR5;
   check(final.status === 'split' && final.winner == null, 'buildBracket(): a completed match with no recorded winner reads as split, not pending');
   const semis = bracket.rounds[1].matches;
   check(semis.every(m => m.status === 'decided' && m.winner != null), 'buildBracket(): both semifinals have real, decided winners from the API');
+}
+
+// 15. buildLlmSummary(): plain-text recap for the detail panel's copy button.
+{
+  const { buildLlmSummary } = await import('../js/ui/llmSummary.js');
+
+  const scenario4 = await getScenarioResults(me.id, r4.id, 8);
+  const summary = buildLlmSummary(me.id, r4.id, scenario4);
+  check(typeof summary === 'string' && summary.length > 0, 'buildLlmSummary(): returns non-empty text');
+  check(!/<[a-z]+[^>]*>/i.test(summary), 'buildLlmSummary(): plain text, no HTML markup');
+  check(summary.includes(S.event.name), 'buildLlmSummary(): includes event name');
+  check(['R1', 'R2', 'R3', 'R4'].every(r => summary.includes(r)), 'buildLlmSummary(): lists round-by-round history');
+  check(['WIN', 'DRAW', 'LOSE'].every(w => summary.includes(w)), 'buildLlmSummary(): includes all three projected scenarios when a future round exists');
+  // This fixture's elimination-phase rounds (R6-R8) also have generated
+  // standings (the event is complete) — "Round: X of 5" must stay anchored
+  // to the last SWISS round, not whichever round (any phase) happens to
+  // have standings, or it reads as nonsense like "Round: 8 of 5".
+  check(/Round: [1-5] of 5 \(Swiss\)/.test(summary), 'buildLlmSummary(): "Round: X of Y" uses the Swiss total, not an elimination-round number');
+
+  // Swiss complete: no future rounds after the last Swiss round.
+  const rLast = swiss.at(-1);
+  const scenarioDone = await getScenarioResults(me.id, rLast.id, 8);
+  check(scenarioDone === null, 'sanity: no scenario projected once Swiss is over');
+  const summaryDone = buildLlmSummary(me.id, rLast.id, scenarioDone);
+  check(/complete/i.test(summaryDone), 'buildLlmSummary(): Swiss-complete case omits the projection block without crashing');
+
+  // No cut configured.
+  els['no-cut-cb'].checked = true;
+  const summaryNoCut = buildLlmSummary(me.id, r4.id, scenario4);
+  check(/no cut configured/i.test(summaryNoCut), 'buildLlmSummary(): notes when no cut is configured');
+  els['no-cut-cb'].checked = false;
 }
 
 if (failed) { console.error('\nSMOKE TEST FAILED'); process.exit(1); }

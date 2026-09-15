@@ -20,6 +20,30 @@ function _samplesFor(players) {
   return Math.max(600, Math.min(2000, Math.round(60000 / Math.max(1, players))));
 }
 
+// Shared with js/ui/overview.js's Followed Players panel (it colors the
+// rank number from the same W/D/L verdicts this file renders) — one cache,
+// no duplicate Monte Carlo run for the same (player, round, cut). Resolves
+// to null when there's nothing to project (elimination round, Swiss over,
+// or the player isn't in that round's field).
+export function getScenarioResults(pid, roundId, cut) {
+  const round = S.rounds.find(r => r.id === roundId);
+  if (!round || round.phase_type !== 'SWISS') return Promise.resolve(null);
+  const future = futureSwissRounds(round.id);
+  if (future.length === 0) return Promise.resolve(null);
+
+  const standings = S.standings[roundId] || [];
+  if (!standings.some(p => p.id === pid)) return Promise.resolve(null);
+
+  const key = _cacheKey(pid, roundId, cut);
+  const cached = _cache.get(key);
+  if (cached) return Promise.resolve(cached);
+
+  const state     = stateAfterRound(round.id);
+  const activeIds = activeIdsAfter(round.id);
+  return runSimulation({ state, me: pid, activeIds, futureRounds: future, cut, samples: _samplesFor(standings.length) })
+    .then(results => { _cache.set(key, results); return results; });
+}
+
 // ── RENDER: SIM ROUND TABS ───────────────────────
 export function renderSimRoundTabs() {
   const el = $('sim-round-tabs');

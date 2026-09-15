@@ -28,3 +28,24 @@ export function pctHtml(res, cut) {
   const txt = p >= 99.5 && p < 100 ? '>99%' : p > 0 && p < 0.5 ? '<1%' : `${Math.round(p)}%`;
   return txt;
 }
+
+// Plain-text companions to verdictHtml/pctHtml, for contexts that can't use
+// markup (e.g. the "copy for LLM" summary in js/ui/llmSummary.js). Kept as
+// separate functions rather than a shared refactor of the HTML versions
+// above, so their exact HTML output — asserted on directly in
+// scripts/smoke-ui.mjs — can't regress.
+export function verdictText(res, cut) {
+  if (!cut) return '—';
+  if (res.out)    return 'OUT';
+  if (res.locked) return 'LOCKED';
+  if (res.pCut == null) return 'bound only';
+  const p = res.pCut;
+  if (p >= 0.95) return 'SAFE';
+  if (p >= 0.60) return 'LIKELY';
+  if (p >= 0.20) return 'RISKY';
+  return 'UNLIKELY';
+}
+
+export function pctText(res, cut) {
+  return pctHtml(res, cut);
+}

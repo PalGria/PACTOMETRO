@@ -1,8 +1,8 @@
-import { restoreTopCut, saveTopCut } from './services/storage.js';
+import { restoreTopCut, saveTopCut, getTopCut } from './services/storage.js';
 import { loadEvent, exitEvent, selectPlayer, refreshEvent } from './controllers/eventController.js';
 import { openRoster, closeRoster } from './controllers/rosterController.js';
 import { renderStandings, setSearchQuery } from './ui/standings.js';
-import { renderSimulation } from './ui/simulation.js';
+import { renderSimulation, getScenarioResults } from './ui/simulation.js';
 import { renderRoundSim } from './ui/roundSim.js';
 import { renderOppPool } from './ui/oppPool.js';
 import { renderAllRounds } from './ui/allRounds.js';
@@ -10,6 +10,7 @@ import S from './state.js';
 import { $, extractEventId } from './utils.js';
 import { renderOverview } from './ui/overview.js';
 import { switchBoardTab } from './ui/boardTabs.js';
+import { buildLlmSummary } from './ui/llmSummary.js';
 
 const _board = () => document.getElementById('board');
 
@@ -75,6 +76,28 @@ function _copyLink(btn) {
 }
 $('share-btn').addEventListener('click', () => _copyLink($('share-btn')));
 $('roster-share-btn').addEventListener('click', () => _copyLink($('roster-share-btn')));
+
+// Copy LLM summary
+async function _copyLlmSummary(btn) {
+  if (!S.activeId) return;
+  const cut = getTopCut();
+  const scenario = S.simRound ? await getScenarioResults(S.activeId, S.simRound, cut) : null;
+  const text = buildLlmSummary(S.activeId, S.simRound, scenario);
+
+  if (!navigator.clipboard) {
+    const prev = btn.textContent;
+    btn.textContent = 'Clipboard unavailable';
+    setTimeout(() => { btn.textContent = prev; }, 1600);
+    return;
+  }
+  navigator.clipboard.writeText(text).then(() => {
+    const prev = btn.textContent;
+    btn.textContent = '✓ Copied';
+    btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = prev; btn.classList.remove('copied'); }, 1400);
+  }).catch(() => {});
+}
+$('llm-copy-btn').addEventListener('click', () => _copyLlmSummary($('llm-copy-btn')));
 
 // Roster drawer
 $('menu-btn').addEventListener('click', openRoster);

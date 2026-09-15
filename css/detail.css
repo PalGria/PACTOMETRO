@@ -266,6 +266,12 @@
 .ov-cut-badge.in  { background: rgba(74,222,128,.15); color: var(--green); }
 .ov-cut-badge.out { background: rgba(248,113,113,.15); color: var(--red); }
 
+/* Followed players' rank number, colored from the per-player simulation —
+   see js/ui/overview.js's _followedColorClass. */
+.rank-num.ov-rank-locked { color: var(--yellow); font-weight: 700; }
+.rank-num.ov-rank-safe   { color: var(--green);  font-weight: 700; }
+.rank-num.ov-rank-out    { color: var(--red); }
+
 .ov-pact-names { display: flex; flex-wrap: wrap; gap: .4rem; }
 .ov-pact-name {
   font-size: .68rem;
@@ -643,9 +649,31 @@
 
 /* ── OPPONENT TRACKER ───────────────────────────── */
 .opp-wrap {
-  padding: 0 0 2.5rem;
+  padding: 0 0 .75rem; /* a section follows now, not sized to be the last element */
   overflow-x: auto;
 }
+
+/* ── LLM SUMMARY ─────────────────────────────────── */
+.llm-hint {
+  font-size: .72rem;
+  color: var(--t3);
+  line-height: 1.5;
+  margin-bottom: .65rem;
+  max-width: 640px;
+}
+.llm-copy-btn {
+  background: transparent;
+  border: 1px solid var(--b2);
+  border-radius: 6px;
+  padding: .45rem .85rem;
+  color: var(--t2);
+  font-size: .72rem;
+  font-weight: 700;
+  letter-spacing: .02em;
+  cursor: pointer;
+}
+.llm-copy-btn:hover  { border-color: var(--blue);  color: var(--blue); }
+.llm-copy-btn.copied { border-color: var(--green); color: var(--green); }
 
 .opp-hdr {
   display: grid;

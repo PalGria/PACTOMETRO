@@ -27,11 +27,16 @@ import {
 import { staticCutTable, pactWindow, pactSet } from '../engine/montecarlo.js';
 import { verdictHtml } from './verdict.js';
 import { renderBracketHtml } from './bracket.js';
+import { getScenarioResults } from './simulation.js';
 
 // Which sub-tab of the Top cut panel is showing. Module-level so it
 // survives a re-render (cut changes, live updates) but resets on a fresh
 // page load — nobody expects a UI tab choice to be persisted forever.
 let _cutTab = 'calculator';
+
+// Guards the async rank-number coloring below (Monte Carlo results come
+// back after the panel may have already re-rendered for something else).
+let _followedToken = 0;
 
 // Rounds still to play (from `roundId` on) that count as "pact territory" —
 // see js/engine/montecarlo.js's pactWindow. Returns { future, inWindow }.
@@ -246,6 +251,40 @@ function _renderFollowed(cut) {
     </table>`;
 }
 
+// Rank-number color from the same per-player simulation the Analysis tab
+// shows: gold — drawing out already locks the cut; green — a win makes it
+// safe (P(cut) ≥ 95% or exactly locked); red — out even with a win. Neither
+// tier reached (winning only helps, doesn't secure it) leaves the default
+// color, same as "no cut configured" or nothing left to project. Exported
+// for direct testing — see scripts/smoke-ui.mjs.
+export function followedColorClass(results) {
+  if (!results) return '';
+  if (results.D.locked) return 'ov-rank-locked';
+  if (results.W.locked || results.W.pCut >= 0.95) return 'ov-rank-safe';
+  if (results.W.out) return 'ov-rank-out';
+  return '';
+}
+
+// Fires the Monte Carlo for each followed player and colors its rank cell
+// once results land — async, so it runs after the synchronous render above
+// rather than blocking it.
+function _colorFollowedRanks(root, cut) {
+  const token = ++_followedToken;
+  if (cut == null || !S.event) return;
+  const roundId = defaultViewRound();
+  if (!roundId) return;
+
+  for (const id of getFollowed(S.event.id)) {
+    getScenarioResults(id, roundId, cut).then(results => {
+      if (token !== _followedToken) return; // panel re-rendered since — stale
+      const cls = followedColorClass(results);
+      if (!cls) return;
+      const cell = root.querySelector(`.ov-followed-list tr[data-id="${id}"] .rank-num`);
+      if (cell) cell.classList.add(cls);
+    });
+  }
+}
+
 export function renderOverview() {
   const root = $('ov-root');
   if (!root) return;
@@ -289,4 +328,6 @@ export function renderOverview() {
       document.dispatchEvent(new CustomEvent('pm:select-player', { detail: { pid: parseInt(el.dataset.id) }, bubbles: true }));
     });
   });
+
+  _colorFollowedRanks(root, cut);
 }
