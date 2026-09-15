@@ -324,6 +324,11 @@ S.matches[r5.id] = savedR5;
   check(summary.includes(S.event.name), 'buildLlmSummary(): includes event name');
   check(['R1', 'R2', 'R3', 'R4'].every(r => summary.includes(r)), 'buildLlmSummary(): lists round-by-round history');
   check(['WIN', 'DRAW', 'LOSE'].every(w => summary.includes(w)), 'buildLlmSummary(): includes all three projected scenarios when a future round exists');
+  // A record only means something next to the field's actual draw rate and
+  // real cut line — the whole point of the request that added this section.
+  check(/Draws so far: \d+ of \d+ matches played \([\d.]+%\)/.test(summary), 'buildLlmSummary(): includes field-wide draw-rate context');
+  check(/Current cut line: rank #8 sits at \d+ pts right now/.test(summary), 'buildLlmSummary(): includes the real cut-line snapshot from current standings');
+  check(/Projected final cut line: ~\d+ pts/.test(summary), 'buildLlmSummary(): includes the Monte Carlo-projected final cut line');
   // This fixture's elimination-phase rounds (R6-R8) also have generated
   // standings (the event is complete) — "Round: X of 5" must stay anchored
   // to the last SWISS round, not whichever round (any phase) happens to
@@ -341,6 +346,9 @@ S.matches[r5.id] = savedR5;
   els['no-cut-cb'].checked = true;
   const summaryNoCut = buildLlmSummary(me.id, r4.id, scenario4);
   check(/no cut configured/i.test(summaryNoCut), 'buildLlmSummary(): notes when no cut is configured');
+  check(/Draws so far:/.test(summaryNoCut), 'buildLlmSummary(): draw-rate context still shows without a cut configured');
+  check(!/Current cut line:/.test(summaryNoCut) && !/Projected final cut line:/.test(summaryNoCut),
+    'buildLlmSummary(): cut-line snapshot lines are omitted without a cut configured (nothing to snapshot)');
   els['no-cut-cb'].checked = false;
 }
 

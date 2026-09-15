@@ -15,6 +15,24 @@ import { verdictText, pctText } from './verdict.js';
 
 const RESULT_WORD = { W: 'WIN', L: 'LOSS', D: 'DRAW' };
 
+// How often the whole field has drawn so far — a 3-1-1 record means
+// something very different in a draw-heavy tournament (everyone's points
+// are inflated, the cut line rises with them) than in one with zero draws.
+// Byes aren't real matches and don't count either way.
+function _fieldDrawStats() {
+  let played = 0, draws = 0;
+  for (const r of swissRounds()) {
+    for (const m of S.matches[r.id] || []) {
+      if (m.match_is_bye) continue;
+      const isDraw = m.match_is_intentional_draw || m.match_is_unintentional_draw;
+      if (!isDraw && m.winning_player == null) continue; // not yet reported
+      played++;
+      if (isDraw) draws++;
+    }
+  }
+  return { played, draws };
+}
+
 function _historyLine(h) {
   let what;
   if (h.dropped) what = 'DROPPED';
@@ -56,6 +74,22 @@ export function buildLlmSummary(pid, roundId, scenario) {
   lines.push('');
   lines.push('CURRENT STANDING');
   lines.push(`Rank #${latest.rank} · Record ${latest.record} · ${latest.points} pts · OMW ${fmtOmw(latest.opponent_match_win_percentage)} · GW ${fmtOmw(latest.game_win_percentage)} · ${active ? 'ACTIVE' : 'ELIMINATED'}`);
+  lines.push('');
+
+  // A record's strength only means something next to the rest of the field:
+  // the same points total can be comfortably in or dangerously out
+  // depending on how draw-heavy the tournament has been and where the
+  // actual cut line sits right now.
+  lines.push('TOURNAMENT CONTEXT');
+  const { played, draws } = _fieldDrawStats();
+  const drawPct = played ? ((draws / played) * 100).toFixed(1) : '0.0';
+  lines.push(`Draws so far: ${draws} of ${played} matches played (${drawPct}%) — more draws push everyone's points, and the cut line, higher.`);
+  if (cut != null) {
+    const rows = S.standings[lastRound.id] || [];
+    const bubble = rows.find(r => r.rank === cut);
+    if (bubble) lines.push(`Current cut line: rank #${cut} sits at ${bubble.points} pts right now.`);
+    if (scenario?.D?.cutPtsMedian != null) lines.push(`Projected final cut line: ~${scenario.D.cutPtsMedian} pts (accounts for remaining rounds and typical draw rates).`);
+  }
   lines.push('');
   lines.push('ROUND-BY-ROUND');
   for (const h of buildHistory(pid)) lines.push(_historyLine(h));
