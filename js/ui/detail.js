@@ -23,6 +23,7 @@ export function renderDetail(pid) {
 
   $('d-placeholder').style.display = 'none';
   $('d-content').style.display     = '';
+  $('llm-fallback').style.display  = 'none';
 
   // Avatar (initials)
   $('d-avatar').textContent = handle.slice(0, 2).toUpperCase();

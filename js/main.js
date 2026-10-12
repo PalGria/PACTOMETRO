@@ -78,24 +78,39 @@ $('share-btn').addEventListener('click', () => _copyLink($('share-btn')));
 $('roster-share-btn').addEventListener('click', () => _copyLink($('roster-share-btn')));
 
 // Copy LLM summary
+function _showLlmFallback(text) {
+  const box = $('llm-fallback');
+  const area = $('llm-fallback-text');
+  area.value = text;
+  box.style.display = 'block';
+  area.focus();
+  area.select();
+}
+
 async function _copyLlmSummary(btn) {
   if (!S.activeId) return;
   const cut = getTopCut();
   const scenario = S.simRound ? await getScenarioResults(S.activeId, S.simRound, cut) : null;
   const text = buildLlmSummary(S.activeId, S.simRound, scenario);
 
+  // NOTE: the clipboard write happens after the `await` above, so by the time
+  // we get here the click's user-activation window may have expired — Safari
+  // and Firefox then reject with NotAllowedError. Always fall back to a
+  // manual-copy box instead of swallowing that failure.
   if (!navigator.clipboard) {
-    const prev = btn.textContent;
-    btn.textContent = 'Clipboard unavailable';
-    setTimeout(() => { btn.textContent = prev; }, 1600);
+    _showLlmFallback(text);
     return;
   }
-  navigator.clipboard.writeText(text).then(() => {
+  try {
+    await navigator.clipboard.writeText(text);
     const prev = btn.textContent;
     btn.textContent = '✓ Copied';
     btn.classList.add('copied');
+    $('llm-fallback').style.display = 'none';
     setTimeout(() => { btn.textContent = prev; btn.classList.remove('copied'); }, 1400);
-  }).catch(() => {});
+  } catch {
+    _showLlmFallback(text);
+  }
 }
 $('llm-copy-btn').addEventListener('click', () => _copyLlmSummary($('llm-copy-btn')));
 

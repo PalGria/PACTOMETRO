@@ -675,6 +675,30 @@
 .llm-copy-btn:hover  { border-color: var(--blue);  color: var(--blue); }
 .llm-copy-btn.copied { border-color: var(--green); color: var(--green); }
 
+.llm-fallback {
+  margin-top: .65rem;
+  max-width: 640px;
+}
+.llm-fallback-hint {
+  font-size: .72rem;
+  color: var(--yellow);
+  line-height: 1.5;
+  margin-bottom: .4rem;
+}
+.llm-fallback-text {
+  width: 100%;
+  min-height: 140px;
+  resize: vertical;
+  background: var(--surface);
+  border: 1px solid var(--b2);
+  border-radius: 6px;
+  color: var(--t1);
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: .68rem;
+  line-height: 1.4;
+  padding: .55rem;
+}
+
 .opp-hdr {
   display: grid;
   gap: .5rem;
