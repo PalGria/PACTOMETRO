@@ -435,6 +435,78 @@ export function simulateAll(opts) {
   return out;
 }
 
+// ── CUT LINE: FIELD-WIDE PROJECTION ──────────────
+// Same outcome model as simulateScenario (rational IDs included in the final
+// round), but nobody's result is forced: every remaining round is sampled for
+// the whole field and the final standings ranked in full. Per sample it
+// records the cut line (points of the player sitting at #cut) and, for every
+// final points total, how many players finished there and how many of them
+// made it — so P(in | finished at X pts) already accounts for tiebreakers.
+//
+// Returns {
+//   samples,
+//   lineCounts: { [pts]: samples whose cut line sat at pts },
+//   tieBubble:  share of samples where #cut and #cut+1 finished on equal points
+//               (the last spot went to tiebreakers),
+//   byPts: [{ pts, players (mean count at pts), pIn (P in cut | pts) }] desc,
+// }
+export function simulateCutLine({ state, activeIds, futureRounds, cut, samples = 1000, seed = DEFAULTS.seed, pDraw = DEFAULTS.pDraw, pIdraw = DEFAULTS.pIdraw }) {
+  if (cut == null) return null;
+  const rng = makeRng(seed);
+  const R = futureRounds.length;
+  const rankIds = Object.keys(state).map(Number);
+
+  const lineCounts = {}, atPts = {}, inAtPts = {};
+  let tieBubble = 0;
+
+  for (let n = 0; n < samples; n++) {
+    const s = cloneState(state);
+
+    for (let k = 0; k < R; k++) {
+      const known = futureRounds[k];
+      let pairs, byeId, locked;
+      if (known && known.pairs) { pairs = known.pairs; byeId = known.byeId ?? null; locked = known.locked || {}; }
+      else { ({ pairs, byeId } = pairSwiss(s, activeIds, rng)); locked = {}; }
+
+      const idSet = k === R - 1 ? lockedWithDraw(s, pairs, byeId, cut, null) : null;
+
+      if (byeId != null) applyMatch(s, byeId, null, 'BYE');
+      for (const [a, b] of pairs) {
+        let res, games;
+        if (locked[pairKey(a, b)]) {
+          res = locked[pairKey(a, b)];
+          games = res === 'D' ? { gww: 0, gwl: 0, gd: 3 } : sampleGames(rng);
+        } else if (idSet && idSet.has(a) && idSet.has(b) && rng() < pIdraw) {
+          res = 'D'; games = { gww: 0, gwl: 0, gd: 3 };
+        } else {
+          const u = rng();
+          if (u < pDraw) { res = 'D'; games = { gww: 1, gwl: 1, gd: 1 }; }
+          else { res = rng() < 0.5 ? 'W1' : 'W2'; games = sampleGames(rng); }
+        }
+        applyMatch(s, a, b, res, games);
+      }
+    }
+
+    const ranked = rankPlayers(s, rankIds);
+    const c = Math.min(cut, ranked.length);
+    const line = ranked[c - 1].pts;
+    lineCounts[line] = (lineCounts[line] || 0) + 1;
+    if (ranked[c] && ranked[c].pts === line) tieBubble++;
+    for (const r of ranked) {
+      atPts[r.pts] = (atPts[r.pts] || 0) + 1;
+      if (r.rank <= cut) inAtPts[r.pts] = (inAtPts[r.pts] || 0) + 1;
+    }
+  }
+
+  const byPts = Object.keys(atPts).map(Number).sort((a, b) => b - a).map(pts => ({
+    pts,
+    players: atPts[pts] / samples,
+    pIn: (inAtPts[pts] || 0) / atPts[pts],
+  }));
+
+  return { samples, lineCounts, tieBubble: tieBubble / samples, byPts };
+}
+
 // ── ROUND SIMULATOR: P(cut) FOR PENDING TABLES ───
 // One round, pairings already fixed. Some tables are already decided
 // (server-confirmed or picked by hand in the round simulator); this samples

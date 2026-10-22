@@ -13,8 +13,12 @@
 //        - Bracket: the elimination bracket (quarterfinals, semifinals,
 //          final...) once the event has a Top N phase — see js/ui/bracket.js.
 //      Only shown once the event actually has an elimination phase.
-//   3. Top N — a live snapshot of the current top `cut` (or 8) standings.
-//   4. Followed players — live rank, current-round matchup and tiebreakers
+//   3. Cut line — Monte Carlo of every remaining Swiss round for the whole
+//      field: where the last spot in the cut is likely to land (points) and
+//      P(make it) for each final points total, tiebreakers included. Filled
+//      in asynchronously — see _fillCutLine.
+//   4. Top N — a live snapshot of the current top `cut` (or 8) standings.
+//   5. Followed players — live rank, current-round matchup and tiebreakers
 //      for whoever's been starred in the roster.
 
 import S from '../state.js';
@@ -22,12 +26,13 @@ import { $, fmtOmw } from '../utils.js';
 import { getTopCut, getFollowed } from '../services/storage.js';
 import {
   defaultViewRound, projectRound, swissRounds, eventTotals,
-  stateAfterRound, futureSwissRounds, activeIdsAfter,
+  stateAfterRound, stateBeforeRound, futureSwissRounds, activeIdsAfter,
 } from '../engine/adapter.js';
-import { staticCutTable, pactWindow, pactSet } from '../engine/montecarlo.js';
+import { staticCutTable, pactWindow, pactSet, DEFAULTS } from '../engine/montecarlo.js';
 import { verdictHtml } from './verdict.js';
 import { renderBracketHtml } from './bracket.js';
 import { getScenarioResults } from './simulation.js';
+import { runCutLineSimulation } from '../services/simWorker.js';
 
 // Which sub-tab of the Top cut panel is showing. Module-level so it
 // survives a re-render (cut changes, live updates) but resets on a fresh
@@ -37,6 +42,12 @@ let _cutTab = 'calculator';
 // Guards the async rank-number coloring below (Monte Carlo results come
 // back after the panel may have already re-rendered for something else).
 let _followedToken = 0;
+
+// Same idea for the cut line panel, plus a results cache: the simulation is
+// seeded, so identical inputs (same confirmed results, same cut) give the
+// same answer and a re-render can skip the rerun.
+let _cutLineToken = 0;
+const _cutLineCache = new Map();
 
 // Rounds still to play (from `roundId` on) that count as "pact territory" —
 // see js/engine/montecarlo.js's pactWindow. Returns { future, inWindow }.
@@ -179,6 +190,130 @@ function _renderPactPanel(cut) {
     </div>`;
 }
 
+// ── PANEL: CUT LINE ───────────────────────────────
+// Base = last Swiss round with official standings; everything after it
+// (including a live round, with its already-reported tables locked) is
+// simulated. No standings yet → simulate the whole Swiss phase from zero.
+function _cutLineInputs() {
+  const swiss = swissRounds();
+  if (!swiss.length) return null;
+  const base = swiss.filter(r => r.standings_status === 'GENERATED').at(-1) || null;
+  return {
+    base,
+    future:    futureSwissRounds(base?.id ?? null),
+    state:     base ? stateAfterRound(base.id) : stateBeforeRound(swiss[0].id),
+    activeIds: activeIdsAfter(base?.id ?? null),
+  };
+}
+
+function _cutLineKey(baseId, cut) {
+  let confirmed = 0;
+  for (const r of swissRounds()) for (const m of S.matches[r.id] || []) if (m.winning_player != null || m.match_is_bye || m.match_is_intentional_draw || m.match_is_unintentional_draw) confirmed++;
+  return `${S.event?.id}|${baseId}|${cut}|${confirmed}`;
+}
+
+// Most common final record for a points total over `R` Swiss rounds (wins
+// first, then draws) — only a label, a draw-heavy line can reach the same pts.
+function _recordFor(pts, R) {
+  const w = Math.floor(pts / 3), d = pts % 3, l = R - w - d;
+  if (!R || l < 0) return '';
+  return d ? `${w}-${l}-${d}` : `${w}-${l}`;
+}
+
+function _fmtPct(p) {
+  if (p >= 0.995 && p < 1) return '>99%';
+  if (p > 0 && p < 0.005) return '<1%';
+  return `${Math.round(p * 100)}%`;
+}
+
+function _renderCutLineShell(cut) {
+  if (!cut) return `<div class="ov-empty">Set a top cut to project the cut line.</div>`;
+  return `<div id="ov-cutline-body"><div class="ov-empty">Simulating the rest of the event…</div></div>`;
+}
+
+function _cutLineHtml(res, cut, totalRounds) {
+  const lineEntries = Object.entries(res.lineCounts).map(([p, c]) => [Number(p), c]);
+  const [modePts, modeCount] = lineEntries.reduce((a, b) => (b[1] > a[1] ? b : a));
+
+  // Keep the rows that matter: anything the line can land on, anything not
+  // already a sure thing either way, plus one row of context on each side.
+  const rows = res.byPts;
+  const relevant = rows.map(r => (res.lineCounts[r.pts] || 0) > 0 || (r.pIn > 0.005 && r.pIn < 0.995));
+  const first = relevant.indexOf(true), last = relevant.lastIndexOf(true);
+  const shown = first < 0 ? [] : rows.slice(Math.max(0, first - 1), last + 2);
+
+  const body = shown.map(r => {
+    const line = (res.lineCounts[r.pts] || 0) / res.samples;
+    const cls = r.pIn >= 0.995 ? 'in' : r.pIn <= 0.005 ? 'out' : '';
+    return `
+      <div class="ov-cl-row${r.pts === modePts ? ' mode' : ''}">
+        <div class="ov-tier-label">${r.pts}</div>
+        <div class="ov-tier-rank">${_recordFor(r.pts, totalRounds)}</div>
+        <div class="ov-cl-bar"><span style="width:${(line * 100).toFixed(1)}%"></span><em>${line ? _fmtPct(line) : ''}</em></div>
+        <div class="ov-cl-pin ${cls}">${_fmtPct(r.pIn)}</div>
+        <div class="ov-tier-count">~${r.players.toFixed(1)}</div>
+      </div>`;
+  }).join('');
+
+  return `
+    <div class="ov-cl-headline">
+      Cut most likely at <strong>${modePts} pts</strong> (${_fmtPct(modeCount / res.samples)})
+      — tiebreakers decide the last spot in ${_fmtPct(res.tieBubble)} of runs.
+    </div>
+    <div class="ov-cl-row ov-cl-header">
+      <div>Pts</div><div>Record</div><div>Line here</div><div>Make it</div><div>~Players</div>
+    </div>
+    ${body}
+    <div class="ov-tier-note">
+      ${res.samples} simulations of every remaining Swiss round for the whole field (50/50 matches,
+      ${Math.round(DEFAULTS.pDraw * 100)}% draws, rational IDs in the last round), ranked with exact tiebreakers.
+      "Make it" = share of players finishing on those points who end inside the Top ${cut}.
+    </div>`;
+}
+
+// Swiss already over: the line is a fact, not a projection.
+function _finalCutLineHtml(baseId, cut) {
+  const rows = [...(S.standings[baseId] || [])].sort((a, b) => a.rank - b.rank);
+  const last = rows[Math.min(cut, rows.length) - 1];
+  if (!last) return `<div class="ov-empty">No standings yet.</div>`;
+  const tied = rows[cut]?.points === last.points;
+  return `
+    <div class="ov-cl-headline">
+      Swiss is over — the cut landed at <strong>${last.points} pts</strong>
+      (${last.record}${tied ? ', decided on tiebreakers' : ''}).
+    </div>`;
+}
+
+function _fillCutLine(root, cut) {
+  const token = ++_cutLineToken;
+  const el = root.querySelector('#ov-cutline-body');
+  if (!el || cut == null) return;
+
+  const inputs = _cutLineInputs();
+  if (!inputs || !inputs.activeIds.length) { el.innerHTML = `<div class="ov-empty">Waiting for pairings…</div>`; return; }
+  const { base, future, state, activeIds } = inputs;
+  if (!future.length) { el.innerHTML = _finalCutLineHtml(base.id, cut); return; }
+
+  const { totalRounds } = eventTotals();
+  const key = _cutLineKey(base?.id ?? null, cut);
+  // Re-query on arrival: the element may have been replaced by a re-render.
+  const show = html => {
+    if (token !== _cutLineToken) return; // panel re-rendered since — stale
+    const cur = root.querySelector('#ov-cutline-body');
+    if (cur) cur.innerHTML = html;
+  };
+  const showRes = res => show(res ? _cutLineHtml(res, cut, totalRounds) : `<div class="ov-empty">Nothing to simulate.</div>`);
+
+  const cached = _cutLineCache.get(key);
+  if (cached) { showRes(cached); return; }
+
+  const n = Object.keys(state).length;
+  const samples = Math.max(300, Math.min(1500, Math.round(150000 / Math.max(1, n))));
+  runCutLineSimulation({ state, activeIds, futureRounds: future, cut, samples })
+    .then(res => { _cutLineCache.set(key, res); showRes(res); })
+    .catch(err => { console.error(err); show(`<div class="ov-empty">Simulation failed.</div>`); });
+}
+
 // ── PANEL: TOP N ───────────────────────────────────
 function _renderTopN(cut) {
   const { rows, canProject } = _currentRows();
@@ -204,6 +339,12 @@ function _renderTopN(cut) {
 }
 
 // ── PANEL: FOLLOWED PLAYERS ───────────────────────
+// fmtOmw with the % in its own span, so the phone layout can drop it (the
+// column header already says %) — see css/detail.css's mobile overview block.
+function _pctCell(v) {
+  return v != null ? `${(v * 100).toFixed(1)}<span class="ov-pct">%</span>` : '—';
+}
+
 function _renderFollowed(cut) {
   if (!S.event) return '';
   const ids = getFollowed(S.event.id);
@@ -231,9 +372,9 @@ function _renderFollowed(cut) {
         <td class="ov-mu-cell">${_matchupHtml(matchup)}</td>
         <td class="rec-cell">${p.record}</td>
         <td class="pts-cell">${_ptsOf(p, canProject)}</td>
-        <td class="omw-cell">${fmtOmw(omw)}</td>
-        <td class="omw-cell">${fmtOmw(gw)}</td>
-        <td class="omw-cell">${fmtOmw(ogw)}</td>
+        <td class="omw-cell">${_pctCell(omw)}</td>
+        <td class="omw-cell">${_pctCell(gw)}</td>
+        <td class="omw-cell">${_pctCell(ogw)}</td>
         <td class="tb-cell">${cut != null ? `<span class="ov-cut-badge ${inCut ? 'in' : 'out'}">${inCut ? 'IN' : 'OUT'}</span>` : ''}</td>
       </tr>`;
   }
@@ -310,6 +451,10 @@ export function renderOverview() {
         ${_renderCutPanel(cut)}
       </div>
       <div class="ov-panel">
+        <div class="ov-panel-title">Projected cut line</div>
+        ${_renderCutLineShell(cut)}
+      </div>
+      <div class="ov-panel">
         <div class="ov-panel-title">Top ${cutN}</div>
         ${_renderTopN(cut)}
       </div>
@@ -330,4 +475,5 @@ export function renderOverview() {
   });
 
   _colorFollowedRanks(root, cut);
+  _fillCutLine(root, cut);
 }

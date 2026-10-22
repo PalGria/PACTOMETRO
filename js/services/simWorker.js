@@ -7,7 +7,7 @@
 // Falls back to a synchronous call when Workers aren't available (the Node
 // smoke test) or if the worker itself fails to start.
 
-import { simulateAll, simulatePendingRound } from '../engine/montecarlo.js';
+import { simulateAll, simulatePendingRound, simulateCutLine } from '../engine/montecarlo.js';
 
 let worker = null;
 let nextId = 1;
@@ -57,4 +57,10 @@ export function runSimulation(opts) {
 // js/engine/montecarlo.js's simulatePendingRound.
 export function runPendingRoundSimulation(opts) {
   return dispatch('pendingRound', opts, simulatePendingRound);
+}
+
+// Field-wide cut line projection for the Overview — see
+// js/engine/montecarlo.js's simulateCutLine.
+export function runCutLineSimulation(opts) {
+  return dispatch('cutLine', opts, simulateCutLine);
 }

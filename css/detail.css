@@ -30,12 +30,12 @@
 
 .ov-dashboard {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 1.25rem;
   align-items: start;
 }
 @media (max-width: 900px) {
-  .ov-dashboard { grid-template-columns: 1fr; }
+  .ov-dashboard { grid-template-columns: minmax(0, 1fr); }
 }
 
 .ov-panel {
@@ -43,6 +43,7 @@
   border: 1px solid var(--b);
   border-radius: 10px;
   padding: 1rem;
+  min-width: 0; /* grid item: let wide tables scroll inside instead of overflowing */
 }
 .ov-panel.full { grid-column: 1 / -1; }
 
@@ -254,6 +255,11 @@
 .ov-mu-opp {
   font-size: .68rem;
   color: var(--t2);
+  display: inline-block;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: middle;
 }
 
 .ov-cut-badge {
@@ -280,6 +286,87 @@
   border-radius: 999px;
   background: rgba(56,189,248,.12);
   color: var(--blue);
+}
+
+/* Projected cut line panel — see js/ui/overview.js's _cutLineHtml. */
+.ov-cl-headline {
+  font-size: .74rem;
+  color: var(--t2);
+  margin-bottom: .6rem;
+  line-height: 1.45;
+}
+.ov-cl-headline strong { color: var(--t1); }
+.ov-cl-row {
+  display: grid;
+  grid-template-columns: 40px 56px 1fr 52px 56px;
+  gap: .5rem;
+  align-items: center;
+  padding: .3rem 0;
+}
+.ov-cl-row.mode { background: rgba(56,189,248,.07); border-radius: 6px; }
+.ov-cl-header {
+  font-size: .58rem;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--t3);
+  border-bottom: 1px solid var(--b);
+  padding-bottom: .4rem;
+  margin-bottom: .2rem;
+}
+.ov-cl-row .ov-tier-label { padding-left: .3rem; }
+.ov-cl-bar {
+  position: relative;
+  height: 14px;
+  background: rgba(148,163,184,.08);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.ov-cl-bar span {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: rgba(56,189,248,.45);
+}
+.ov-cl-bar em {
+  position: relative;
+  font-style: normal;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: .6rem;
+  color: var(--t1);
+  padding-left: .3rem;
+  line-height: 14px;
+}
+.ov-cl-pin {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: .72rem;
+  font-weight: 700;
+  color: var(--yellow);
+  text-align: right;
+}
+.ov-cl-pin.in  { color: var(--green); }
+.ov-cl-pin.out { color: var(--red); }
+
+/* Phones: shrink the overview tables so a standard ~360px screen fits every
+   column; whatever still doesn't fit scrolls inside .ov-followed-list. */
+@media (max-width: 760px) {
+  .detail-overview { padding: .75rem .5rem; }
+  .ov-dashboard { gap: .75rem; }
+  .ov-panel { padding: .65rem .5rem; }
+
+  .ov-followed-table td { padding: .3rem .12rem; }
+  .ov-followed-table thead th { padding: 0 .12rem .35rem; font-size: .5rem; letter-spacing: .04em; }
+  .ov-followed-table .rank-num { font-size: .6rem; width: auto; }
+  .ov-followed-table .handle   { font-size: .7rem; max-width: 76px; }
+  .ov-followed-table .rec-cell { font-size: .62rem; }
+  .ov-followed-table .pts-cell { font-size: .7rem; }
+  .ov-followed-table .omw-cell { font-size: .58rem; }
+  .ov-followed-table .ov-pct   { display: none; } /* header already says % */
+  .ov-mu { width: 14px; height: 14px; font-size: .52rem; margin-right: .2rem; }
+  .ov-mu-opp { font-size: .6rem; max-width: 56px; }
+  .ov-cut-badge { font-size: .5rem; padding: .08rem .25rem; }
+
+  .ov-cl-row { grid-template-columns: 30px 44px 1fr 40px 44px; gap: .35rem; }
+  .ov-cl-header { font-size: .5rem; letter-spacing: .04em; }
 }
 
 /* ── PLAYER HEADER ──────────────────────────────── */
