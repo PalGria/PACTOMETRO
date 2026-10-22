@@ -9,9 +9,9 @@ const _base = (() => {
 // the shareable-link address bar update in eventController.js).
 export const appBase = _base;
 
-export const api = (path, params = {}) => {
+export const api = (path, params = {}, opts = {}) => {
   const qs = new URLSearchParams(params).toString();
-  return fetch(`${_base}api${path}${qs ? '?' + qs : ''}`)
+  return fetch(`${_base}api${path}${qs ? '?' + qs : ''}`, opts)
     .then(r => { if (!r.ok) throw new Error(`${r.status} ${path}`); return r.json(); });
 };
 
@@ -19,7 +19,9 @@ export const api = (path, params = {}) => {
 // The server keeps every opened event, polls upstream on its own schedule and
 // hands the app one compact bundle: { event, rounds, standings, matches,
 // version, updated_at, fetched_at, finished, error }.
-export const getEventBundle  = eid => api(`/event/${eid}`);
+// `opts` (e.g. { signal }) is passed straight through to fetch — the initial
+// load uses it to let the user cancel a bundle fetch that's hanging.
+export const getEventBundle  = (eid, opts) => api(`/event/${eid}`, {}, opts);
 export const getEventVersion = eid => api(`/event/${eid}/version`);
 
 // Ask the server to fetch upstream now. Returns { version, refreshed,

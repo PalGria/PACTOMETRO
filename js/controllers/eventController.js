@@ -94,6 +94,16 @@ function _applyUpdate(bundle) {
   }
 }
 
+// The initial bundle fetch (below) is the one load the user can get stuck
+// staring at — a slow/hanging upstream API leaves #load-screen up with no
+// way out otherwise. Module-level so the Cancel button (wired in main.js)
+// can reach whatever fetch is currently in flight.
+let _loadAbort = null;
+
+export function cancelLoad() {
+  _loadAbort?.abort();
+}
+
 // ── LOAD EVENT ───────────────────────────────────
 export async function loadEvent(url, restorePlayerId = null, { fromCache = false } = {}) {
   const eid = extractEventId(url);
@@ -131,8 +141,9 @@ export async function loadEvent(url, restorePlayerId = null, { fromCache = false
   $('search-clear-btn').hidden = true;
   stopLive();
 
+  _loadAbort = new AbortController();
   try {
-    const bundle = await getEventBundle(eid);
+    const bundle = await getEventBundle(eid, { signal: _loadAbort.signal });
     applyBundle(bundle);
     S.viewRound = defaultViewRound();
     S.simRound  = _latestSwiss();
@@ -156,10 +167,13 @@ export async function loadEvent(url, restorePlayerId = null, { fromCache = false
     }
     startLive(eid, _applyUpdate);
   } catch(e) {
-    alert('Failed to load: ' + e.message);
-    console.error(e);
+    if (e.name !== 'AbortError') {
+      alert('Failed to load: ' + e.message);
+      console.error(e);
+    } // else: the user cancelled — just fall back to the pre-load screen below, no error
     if (!S.event) { if (window.innerWidth <= 760) openRoster(); else showWelcome(); }
   } finally {
+    _loadAbort = null;
     loader(false);
   }
 }

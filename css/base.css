@@ -101,6 +101,18 @@ body {
   animation: spin .75s linear infinite;
 }
 .ls-text { font-size: .72rem; color: var(--t3); letter-spacing: .06em; }
+.ls-cancel-btn {
+  background: transparent;
+  border: 1px solid var(--b2);
+  border-radius: 6px;
+  padding: .4rem .9rem;
+  color: var(--t3);
+  font-size: .68rem;
+  font-weight: 700;
+  letter-spacing: .04em;
+  cursor: pointer;
+}
+.ls-cancel-btn:hover { border-color: var(--red); color: var(--red); }
 @keyframes spin { to { transform: rotate(360deg); } }
 
 /* ── SHELL ──────────────────────────────────────── */

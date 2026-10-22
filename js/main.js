@@ -1,5 +1,5 @@
 import { restoreTopCut, saveTopCut, getTopCut } from './services/storage.js';
-import { loadEvent, exitEvent, selectPlayer, refreshEvent } from './controllers/eventController.js';
+import { loadEvent, exitEvent, selectPlayer, refreshEvent, cancelLoad } from './controllers/eventController.js';
 import { openRoster, closeRoster } from './controllers/rosterController.js';
 import { renderStandings, setSearchQuery } from './ui/standings.js';
 import { renderSimulation, getScenarioResults } from './ui/simulation.js';
@@ -64,6 +64,7 @@ document.addEventListener('pm:select-player', e => {
 $('form').addEventListener('submit', e => { e.preventDefault(); const url = $('url-input').value.trim(); if (url) loadEvent(url); });
 $('refresh-btn').addEventListener('click', () => { if (S.event) refreshEvent(); else { const url = $('url-input').value.trim(); if (url) loadEvent(url); } });
 $('exit-btn').addEventListener('click', exitEvent);
+$('ls-cancel-btn').addEventListener('click', cancelLoad);
 
 // Copy shareable link
 function _copyLink(btn) {
