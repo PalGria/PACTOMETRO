@@ -274,7 +274,9 @@ S.matches[r5.id] = savedR5;
     'renderOverview(): Top cut panel present with Calculator/Bracket sub-tabs (event has an elimination phase)');
   check(ovHtml.includes('~Players'), 'renderOverview(): static cut table (default sub-tab) has the expected-count column');
   check(/Top \d+/.test(ovHtml), 'renderOverview(): top-N panel title shows a cut size');
-  check(ovHtml.includes('Followed players'), 'renderOverview(): followed players panel present');
+  // Nobody followed in the stubbed localStorage: the followed panels stay out.
+  check(!ovHtml.includes('Followed players') && !ovHtml.includes('Your players'),
+    'renderOverview(): followed-player panels hidden when nobody is followed');
 
   // followedColorClass: the gold/green/red tiers for the Followed Players
   // rank number, against three real R4 records (Top 8 cut, R5 the only

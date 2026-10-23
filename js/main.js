@@ -8,7 +8,7 @@ import { renderOppPool } from './ui/oppPool.js';
 import { renderAllRounds } from './ui/allRounds.js';
 import S from './state.js';
 import { $, extractEventId } from './utils.js';
-import { renderOverview } from './ui/overview.js';
+import { renderOverview, getCutLineProjection } from './ui/overview.js';
 import { switchBoardTab } from './ui/boardTabs.js';
 import { buildLlmSummary } from './ui/llmSummary.js';
 
@@ -91,8 +91,11 @@ function _showLlmFallback(text) {
 async function _copyLlmSummary(btn) {
   if (!S.activeId) return;
   const cut = getTopCut();
-  const scenario = S.simRound ? await getScenarioResults(S.activeId, S.simRound, cut) : null;
-  const text = buildLlmSummary(S.activeId, S.simRound, scenario);
+  const [scenario, cutLine] = await Promise.all([
+    S.simRound ? getScenarioResults(S.activeId, S.simRound, cut) : null,
+    getCutLineProjection(cut).catch(() => null),
+  ]);
+  const text = buildLlmSummary(S.activeId, S.simRound, scenario, cutLine);
 
   // NOTE: the clipboard write happens after the `await` above, so by the time
   // we get here the click's user-activation window may have expired — Safari

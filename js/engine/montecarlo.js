@@ -449,6 +449,14 @@ export function simulateAll(opts) {
 //   tieBubble:  share of samples where #cut and #cut+1 finished on equal points
 //               (the last spot went to tiebreakers),
 //   byPts: [{ pts, players (mean count at pts), pIn (P in cut | pts) }] desc,
+//   byStart: { [startPts]: { [finalPts]: [n, nIn] } } — byPts split by the
+//            points each player had going in, for "what do I need",
+//   pInById: { [id]: P(in cut) } for every player in the state,
+//   finalById: { [id]: { [finalPts]: [n, nIn] } } — each player's own final
+//            totals, so results already locked in a live round are respected,
+//   bubble:  { [linePts]: { n, lastIn: [p25, p50, p75], firstOut: [p25, p50, p75] } }
+//            OMW of the last player in and the first one out, over the runs
+//            where the cut was tied at linePts (decided on tiebreakers),
 // }
 export function simulateCutLine({ state, activeIds, futureRounds, cut, samples = 1000, seed = DEFAULTS.seed, pDraw = DEFAULTS.pDraw, pIdraw = DEFAULTS.pIdraw }) {
   if (cut == null) return null;
@@ -456,8 +464,10 @@ export function simulateCutLine({ state, activeIds, futureRounds, cut, samples =
   const R = futureRounds.length;
   const rankIds = Object.keys(state).map(Number);
 
-  const lineCounts = {}, atPts = {}, inAtPts = {};
+  const lineCounts = {}, atPts = {}, inAtPts = {}, byStart = {}, inById = {}, bubbleOmw = {}, finalById = {};
   let tieBubble = 0;
+  const startPts = {};
+  for (const id of rankIds) startPts[id] = 3 * state[id].w + state[id].d;
 
   for (let n = 0; n < samples; n++) {
     const s = cloneState(state);
@@ -491,10 +501,24 @@ export function simulateCutLine({ state, activeIds, futureRounds, cut, samples =
     const c = Math.min(cut, ranked.length);
     const line = ranked[c - 1].pts;
     lineCounts[line] = (lineCounts[line] || 0) + 1;
-    if (ranked[c] && ranked[c].pts === line) tieBubble++;
+    if (ranked[c] && ranked[c].pts === line) {
+      tieBubble++;
+      const b = bubbleOmw[line] || (bubbleOmw[line] = { lastIn: [], firstOut: [] });
+      b.lastIn.push(ranked[c - 1].omw);
+      b.firstOut.push(ranked[c].omw);
+    }
     for (const r of ranked) {
+      const isIn = r.rank <= cut;
       atPts[r.pts] = (atPts[r.pts] || 0) + 1;
-      if (r.rank <= cut) inAtPts[r.pts] = (inAtPts[r.pts] || 0) + 1;
+      if (isIn) { inAtPts[r.pts] = (inAtPts[r.pts] || 0) + 1; inById[r.id] = (inById[r.id] || 0) + 1; }
+      const bs = byStart[startPts[r.id]] || (byStart[startPts[r.id]] = {});
+      const cell = bs[r.pts] || (bs[r.pts] = [0, 0]);
+      cell[0]++;
+      if (isIn) cell[1]++;
+      const fb = finalById[r.id] || (finalById[r.id] = {});
+      const own = fb[r.pts] || (fb[r.pts] = [0, 0]);
+      own[0]++;
+      if (isIn) own[1]++;
     }
   }
 
@@ -504,7 +528,22 @@ export function simulateCutLine({ state, activeIds, futureRounds, cut, samples =
     pIn: (inAtPts[pts] || 0) / atPts[pts],
   }));
 
-  return { samples, lineCounts, tieBubble: tieBubble / samples, byPts };
+  const pInById = {};
+  for (const id of rankIds) pInById[id] = (inById[id] || 0) / samples;
+
+  const q = (arr, p) => arr[Math.min(arr.length - 1, Math.floor(p * arr.length))];
+  const bubble = {};
+  for (const [pts, b] of Object.entries(bubbleOmw)) {
+    b.lastIn.sort((x, y) => x - y);
+    b.firstOut.sort((x, y) => x - y);
+    bubble[pts] = {
+      n: b.lastIn.length,
+      lastIn:   [q(b.lastIn, .25), q(b.lastIn, .5), q(b.lastIn, .75)],
+      firstOut: [q(b.firstOut, .25), q(b.firstOut, .5), q(b.firstOut, .75)],
+    };
+  }
+
+  return { samples, lineCounts, tieBubble: tieBubble / samples, byPts, byStart, pInById, finalById, bubble };
 }
 
 // ── ROUND SIMULATOR: P(cut) FOR PENDING TABLES ───
