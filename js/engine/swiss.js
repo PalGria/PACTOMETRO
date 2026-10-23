@@ -115,18 +115,21 @@ export function gameWinPct(r) {
 
 // Returns { [id]: { pts, mwp, omw, gw, ogw } }
 export function computeTiebreaks(s) {
-  const mw = {}, gwp = {};
-  for (const k in s) { mw[k] = matchWinPct(s[k]); gwp[k] = gameWinPct(s[k]); }
+  // Maps rather than objects: ids are large sparse integers, and objects keyed
+  // by them are slow once a field has thousands of players.
+  const keys = Object.keys(s);
+  const mw = new Map(), gwp = new Map();
+  for (const k of keys) { const id = +k; mw.set(id, matchWinPct(s[k])); gwp.set(id, gameWinPct(s[k])); }
   const out = {};
-  for (const k in s) {
-    const r = s[k], n = r.opps.length;
+  for (const k of keys) {
+    const r = s[k], n = r.opps.length, id = +k;
     let omw = FLOOR, ogw = FLOOR;
     if (n) {
       let so = 0, sg = 0;
-      for (const o of r.opps) { so += mw[o] ?? FLOOR; sg += gwp[o] ?? FLOOR; }
+      for (const o of r.opps) { so += mw.get(+o) ?? FLOOR; sg += gwp.get(+o) ?? FLOOR; }
       omw = so / n; ogw = sg / n;
     }
-    out[k] = { pts: points(r), mwp: mw[k], omw, gw: gwp[k], ogw };
+    out[k] = { pts: points(r), mwp: mw.get(id), omw, gw: gwp.get(id), ogw };
   }
   return out;
 }

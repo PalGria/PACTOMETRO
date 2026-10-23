@@ -390,6 +390,16 @@
 }
 .ov-cl-fact strong { font-family: 'JetBrains Mono', monospace; color: var(--blue); font-size: .8rem; }
 .ov-cl-fact em { font-style: normal; color: var(--t3); }
+.ov-cl-fact.in  { border-color: rgba(74,222,128,.35); }
+.ov-cl-fact.in strong  { color: var(--green); }
+.ov-cl-fact.out { border-color: rgba(248,113,113,.35); }
+.ov-cl-fact.out strong { color: var(--red); }
+.ov-cl-headline {
+  font-size: .85rem;
+  color: var(--t2);
+  margin-bottom: .85rem;
+}
+.ov-cl-headline strong { color: var(--t1); font-family: 'JetBrains Mono', monospace; }
 
 .ov-cl-row {
   display: grid;

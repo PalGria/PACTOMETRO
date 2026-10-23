@@ -21,42 +21,45 @@ export function makeRng(seed) {
 // state: engine state; activeIds: players still in the event; rng: () => [0,1)
 // Returns { pairs: [[a, b], ...], byeId: id | null }
 export function pairSwiss(state, activeIds, rng) {
-  const ids = activeIds.slice();
-  const key = {};
-  for (const id of ids) key[id] = points(state[id]) + rng() * 0.5; // random inside bracket
-  ids.sort((a, b) => key[b] - key[a]);
+  // Works on positions in the sorted order rather than ids: called once per
+  // simulated round, so with thousands of players per-player Sets/objects
+  // dominated the whole simulation.
+  const n = activeIds.length;
+  const key = new Float64Array(n);
+  for (let i = 0; i < n; i++) key[i] = points(state[activeIds[i]]) + rng() * 0.5; // random inside bracket
+  const order = Array.from({ length: n }, (_, i) => i);
+  order.sort((x, y) => key[y] - key[x]);
+  const ids = order.map(i => activeIds[i]);
 
-  const played = {};
-  for (const id of ids) played[id] = new Set(state[id].opps);
-
-  const used = new Set();
+  const used = new Uint8Array(n);
   let byeId = null;
-  if (ids.length % 2 === 1) {
-    for (let i = ids.length - 1; i >= 0; i--) {
-      if (state[ids[i]].bye === 0) { byeId = ids[i]; break; }
+  if (n % 2 === 1) {
+    let at = n - 1;
+    for (let i = n - 1; i >= 0; i--) {
+      if (state[ids[i]].bye === 0) { at = i; break; }
     }
-    if (byeId == null) byeId = ids[ids.length - 1];
-    used.add(byeId);
+    byeId = ids[at];
+    used[at] = 1;
   }
 
   const pairs = [];
-  for (let i = 0; i < ids.length; i++) {
+  for (let i = 0; i < n; i++) {
+    if (used[i]) continue;
     const a = ids[i];
-    if (used.has(a)) continue;
-    let found = null;
-    for (let j = i + 1; j < ids.length; j++) {
-      const b = ids[j];
-      if (used.has(b) || played[a].has(b)) continue;
-      found = b; break;
+    const played = state[a].opps; // a handful of ids: includes() beats a Set
+    let found = -1;
+    for (let j = i + 1; j < n; j++) {
+      if (used[j] || played.includes(ids[j])) continue;
+      found = j; break;
     }
-    if (found == null) {
-      for (let j = i + 1; j < ids.length; j++) {
-        if (!used.has(ids[j])) { found = ids[j]; break; }
+    if (found < 0) {
+      for (let j = i + 1; j < n; j++) {
+        if (!used[j]) { found = j; break; }
       }
     }
-    if (found == null) continue;
-    used.add(a); used.add(found);
-    pairs.push([a, found]);
+    if (found < 0) continue;
+    used[i] = 1; used[found] = 1;
+    pairs.push([a, ids[found]]);
   }
   return { pairs, byeId };
 }

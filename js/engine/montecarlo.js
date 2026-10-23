@@ -298,25 +298,39 @@ function lockedWithDraw(state, pairs, byeId, cut, forcedTable) {
   const others = [];
   for (const k in state) if (!paired.has(Number(k))) others.push(points(state[k]));
 
+  // Worst case for each table: the result that puts the most players on at
+  // least `target` points.
+  const worst = (u, target) => {
+    const reach = p => (p >= target ? 1 : 0);
+    const [pa, pb] = tables[u];
+    if (forcedTable && u === forcedTable.idx) {
+      const meIsA = pairs[u][0] === forcedTable.me;
+      const mePts = meIsA ? pa : pb, oppPts = meIsA ? pb : pa;
+      return reach(mePts + forcedTable.gainMe) + reach(oppPts + forcedTable.gainOpp);
+    }
+    return Math.max(reach(pa + 3) + reach(pb), reach(pa) + reach(pb + 3), reach(pa + 1) + reach(pb + 1));
+  };
+  // Players that can end on ≥ target everywhere, per target: only a handful
+  // of distinct targets exist, so this keeps the check linear in the field.
+  const totals = new Map();
+  const totalFor = target => {
+    let v = totals.get(target);
+    if (v == null) {
+      v = 0;
+      for (let u = 0; u < pairs.length; u++) v += worst(u, target);
+      if (byePts != null && byePts >= target) v++;
+      for (const p of others) if (p >= target) v++;
+      totals.set(target, v);
+    }
+    return v;
+  };
+
   for (let t = 0; t < pairs.length; t++) {
     if (forcedTable && t === forcedTable.idx) continue; // my table cannot ID (scenario is fixed)
     for (const side of [0, 1]) {
       const target = tables[t][side] + 1;
-      const reach = p => (p >= target ? 1 : 0);
-      let above = reach(tables[t][1 - side] + 1); // partner also gets +1
-      for (let u = 0; u < pairs.length && above < cut; u++) {
-        if (u === t) continue;
-        const [pa, pb] = tables[u];
-        if (forcedTable && u === forcedTable.idx) {
-          const meIsA = pairs[u][0] === forcedTable.me;
-          const mePts = meIsA ? pa : pb, oppPts = meIsA ? pb : pa;
-          above += reach(mePts + forcedTable.gainMe) + reach(oppPts + forcedTable.gainOpp);
-          continue;
-        }
-        above += Math.max(reach(pa + 3) + reach(pb), reach(pa) + reach(pb + 3), reach(pa + 1) + reach(pb + 1));
-      }
-      if (byePts != null && above < cut) above += reach(byePts);
-      for (const p of others) { if (above >= cut) break; above += reach(p); }
+      const partner = tables[t][1 - side] + 1 >= target ? 1 : 0; // partner also gets +1
+      const above = partner + totalFor(target) - worst(t, target);
       if (above < cut) out.add(pairs[t][side]);
     }
   }
@@ -356,6 +370,7 @@ export function simulateScenario(opts) {
       let pairs, byeId, locked;
       if (known && known.pairs) { pairs = known.pairs; byeId = known.byeId ?? null; locked = known.locked || {}; }
       else { ({ pairs, byeId } = pairSwiss(s, active, rng)); locked = {}; }
+      const hasLocked = !!known?.locked && Object.keys(locked).length > 0;
 
       const isFinal = k === R - 1;
       let idSet = null;
@@ -379,7 +394,7 @@ export function simulateScenario(opts) {
         if (k === 0 && mine) {
           res = forced(scenario, a === me);
           games = res === 'D' ? { gww: 0, gwl: 0, gd: 3 } : sampleGames(rng);
-        } else if (locked[pairKey(a, b)]) {
+        } else if (hasLocked && locked[pairKey(a, b)]) {
           res = locked[pairKey(a, b)];
           games = res === 'D' ? { gww: 0, gwl: 0, gd: 3 } : sampleGames(rng);
         } else if (idSet && idSet.has(a) && idSet.has(b) && rng() < pIdraw) {
@@ -464,10 +479,16 @@ export function simulateCutLine({ state, activeIds, futureRounds, cut, samples =
   const R = futureRounds.length;
   const rankIds = Object.keys(state).map(Number);
 
-  const lineCounts = {}, atPts = {}, inAtPts = {}, byStart = {}, inById = {}, bubbleOmw = {}, finalById = {};
+  const lineCounts = {}, atPts = {}, inAtPts = {}, byStart = {}, bubbleOmw = {};
+  // Per-player tallies live in Maps while sampling: ids are large sparse
+  // integers, and objects keyed by them are slow on fields of thousands.
+  const inById = new Map(), finalMap = new Map(), startOf = new Map();
   let tieBubble = 0;
-  const startPts = {};
-  for (const id of rankIds) startPts[id] = 3 * state[id].w + state[id].d;
+  for (const id of rankIds) {
+    const st = 3 * state[id].w + state[id].d;
+    startOf.set(id, byStart[st] || (byStart[st] = {}));
+    finalMap.set(id, {});
+  }
 
   for (let n = 0; n < samples; n++) {
     const s = cloneState(state);
@@ -477,13 +498,14 @@ export function simulateCutLine({ state, activeIds, futureRounds, cut, samples =
       let pairs, byeId, locked;
       if (known && known.pairs) { pairs = known.pairs; byeId = known.byeId ?? null; locked = known.locked || {}; }
       else { ({ pairs, byeId } = pairSwiss(s, activeIds, rng)); locked = {}; }
+      const hasLocked = !!known?.locked && Object.keys(locked).length > 0;
 
       const idSet = k === R - 1 ? lockedWithDraw(s, pairs, byeId, cut, null) : null;
 
       if (byeId != null) applyMatch(s, byeId, null, 'BYE');
       for (const [a, b] of pairs) {
         let res, games;
-        if (locked[pairKey(a, b)]) {
+        if (hasLocked && locked[pairKey(a, b)]) {
           res = locked[pairKey(a, b)];
           games = res === 'D' ? { gww: 0, gwl: 0, gd: 3 } : sampleGames(rng);
         } else if (idSet && idSet.has(a) && idSet.has(b) && rng() < pIdraw) {
@@ -510,12 +532,12 @@ export function simulateCutLine({ state, activeIds, futureRounds, cut, samples =
     for (const r of ranked) {
       const isIn = r.rank <= cut;
       atPts[r.pts] = (atPts[r.pts] || 0) + 1;
-      if (isIn) { inAtPts[r.pts] = (inAtPts[r.pts] || 0) + 1; inById[r.id] = (inById[r.id] || 0) + 1; }
-      const bs = byStart[startPts[r.id]] || (byStart[startPts[r.id]] = {});
+      if (isIn) { inAtPts[r.pts] = (inAtPts[r.pts] || 0) + 1; inById.set(r.id, (inById.get(r.id) || 0) + 1); }
+      const bs = startOf.get(r.id);
       const cell = bs[r.pts] || (bs[r.pts] = [0, 0]);
       cell[0]++;
       if (isIn) cell[1]++;
-      const fb = finalById[r.id] || (finalById[r.id] = {});
+      const fb = finalMap.get(r.id);
       const own = fb[r.pts] || (fb[r.pts] = [0, 0]);
       own[0]++;
       if (isIn) own[1]++;
@@ -528,8 +550,11 @@ export function simulateCutLine({ state, activeIds, futureRounds, cut, samples =
     pIn: (inAtPts[pts] || 0) / atPts[pts],
   }));
 
-  const pInById = {};
-  for (const id of rankIds) pInById[id] = (inById[id] || 0) / samples;
+  const pInById = {}, finalById = {};
+  for (const id of rankIds) {
+    pInById[id] = (inById.get(id) || 0) / samples;
+    finalById[id] = finalMap.get(id);
+  }
 
   const q = (arr, p) => arr[Math.min(arr.length - 1, Math.floor(p * arr.length))];
   const bubble = {};

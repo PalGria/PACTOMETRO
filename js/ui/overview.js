@@ -518,11 +518,88 @@ function _finalCutLineHtml(baseId, cut) {
   const rows = [...(S.standings[baseId] || [])].sort((a, b) => a.rank - b.rank);
   const last = rows[Math.min(cut, rows.length) - 1];
   if (!last) return `<div class="ov-empty">No standings yet.</div>`;
-  const tied = rows[cut]?.points === last.points;
+  const { totalRounds } = eventTotals();
+  const firstOut = rows[cut] || null;
+  const tied = firstOut?.points === last.points;
+  const out = rows.slice(cut);
+
+  // Points groups, top down: how many finished there and how many got in.
+  const groups = new Map();
+  rows.forEach((p, i) => {
+    const g = groups.get(p.points) || { pts: p.points, n: 0, in: 0 };
+    g.n++;
+    if (i < cut) g.in++;
+    groups.set(p.points, g);
+  });
+  const list = [...groups.values()].sort((a, b) => b.pts - a.pts);
+  // "Safe" in hindsight: fewest points with which nobody was left out.
+  const maxOut = out.length ? out[0].points : -1;
+  const safe = list.filter(g => g.pts > maxOut).at(-1) || null;
+  const line = groups.get(last.points);
+  const tiedOut = out.filter(p => p.points === last.points).length;
+
+  const omw = p => p?.opponent_match_win_percentage;
+  const who = (label, p, cls) => p ? `
+    <div class="ov-cl-fact ${cls}"><span>${label}</span><strong>#${p.rank} ${_handleOf(p)}</strong>
+      <em>${p.points} pts · OMW ${fmtOmw(omw(p))}</em></div>` : '';
+  const margin = tied && omw(last) != null && omw(firstOut) != null
+    ? `<div class="ov-cl-fact"><span>OMW gap</span><strong>${((omw(last) - omw(firstOut)) * 100).toFixed(1)} pp</strong><em>last in vs first out</em></div>`
+    : '';
+
+  const stat = (cls, icon, label, g, sub, share) => `
+    <div class="ov-cl-stat ${cls}">
+      <div class="ov-cl-stat-label"><span class="ov-cl-stat-icon">${icon}</span>${label}</div>
+      <div class="ov-cl-stat-val">${g ? `${g.pts}<small>pts</small>` : '—'}</div>
+      <div class="ov-cl-stat-sub">${g ? `<span class="ov-cl-rec">${_recordFor(g.pts, totalRounds)}</span> ${sub}` : 'Nobody was safe'}</div>
+      <div class="ov-cl-meter"><span style="width:${(share * 100).toFixed(1)}%"></span></div>
+    </div>`;
+
+  const lowest = list.at(-1)?.pts;
+  const shown = list.filter(g => g.pts >= last.points || g.pts === list.find(x => x.pts < last.points)?.pts);
+  const body = shown.map(g => {
+    const share = g.in / g.n;
+    const tier = share === 1 ? 'in' : share >= 0.5 ? 'likely' : share > 0 ? 'maybe' : 'out';
+    const tags = [
+      g === line ? '<span class="ov-cl-tag mode">cut</span>' : '',
+      g === safe ? '<span class="ov-cl-tag in">safe</span>' : '',
+    ].join('');
+    return `
+      <div class="ov-cl-row${g === line ? ' mode' : ''} tier-${tier}">
+        <div class="ov-tier-label">${g.pts}</div>
+        <div class="ov-tier-rank">${_recordFor(g.pts, totalRounds)}</div>
+        <div class="ov-cl-linecell">
+          <div class="ov-cl-bar"><span style="width:${(share * 100).toFixed(1)}%"></span></div>
+          <em>${g.in}/${g.n}</em>${tags}
+        </div>
+        <div class="ov-cl-pin"><span class="ov-cl-pill ${tier}">${_fmtPct(share)}</span></div>
+        <div class="ov-tier-count">${g.n}</div>
+      </div>`;
+  }).join('');
+  const below = list.filter(g => g.pts < last.points && !shown.includes(g)).reduce((s, g) => s + g.n, 0);
+
   return `
     <div class="ov-cl-headline">
       Swiss is over — the cut landed at <strong>${last.points} pts</strong>
-      (${last.record}${tied ? ', decided on tiebreakers' : ''}).
+      (${last.match_record || last.record}${tied ? ', decided on tiebreakers' : ''}).
+    </div>
+    <div class="ov-cl-stats">
+      ${stat('in', '✓', 'Safe with', safe, safe ? `all ${safe.n} made it` : '', safe ? 1 : 0)}
+      ${stat('maybe', '?', 'Lowest that got in', line, `${line.in} of ${line.n} made it`, line.in / line.n)}
+    </div>
+    <div class="ov-cl-facts">
+      <div class="ov-cl-fact"><span>Missed the cut</span><strong>${out.length}</strong><em>of ${rows.length} players</em></div>
+      ${tiedOut ? `<div class="ov-cl-fact"><span>Out on tiebreakers</span><strong>${tiedOut}</strong><em>with ${last.points} pts</em></div>` : ''}
+      ${who('Last in', last, 'in')}
+      ${who('First out', firstOut, 'out')}
+      ${margin}
+    </div>
+    <div class="ov-cl-row ov-cl-header">
+      <div>Pts</div><div>Record</div><div>Made the cut</div><div>Share</div><div>Players</div>
+    </div>
+    ${body}
+    <div class="ov-tier-note">
+      Final standings. "Safe with" = fewest points with which every player made the Top ${cut};
+      "Lowest that got in" = points of the #${cut}.${below ? ` ${below} more player${below === 1 ? '' : 's'} finished below ${shown.at(-1).pts} pts${lowest != null ? ` (down to ${lowest})` : ''}.` : ''}
     </div>`;
 }
 

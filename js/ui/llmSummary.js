@@ -163,7 +163,8 @@ export function buildLlmSummary(pid, roundId, scenario, cutLine = null) {
   // ── EVENT ──
   section('EVENT');
   L.push(`Event: ${ev.name}`);
-  L.push(`Format: ${ev.gameplay_format?.name || ev.event_format}${ev.store ? ` · ${ev.store.name}` : ''}${ev.start_datetime ? ` · ${String(ev.start_datetime).slice(0, 10)}` : ''}`);
+  const meta = [ev.gameplay_format?.name || ev.event_format, ev.store?.name, ev.start_datetime && String(ev.start_datetime).slice(0, 10)].filter(Boolean);
+  if (meta.length) L.push(`Format: ${meta.join(' · ')}`);
   L.push(`Field: ${totalPlayers} players · ${cut ? `Top ${cut} cut` : 'no cut configured'}`);
   L.push(`Round: ${lastRound.round_number} of ${totalRounds} (Swiss) completed${liveRound ? ` — R${liveRound.round_number} in progress` : ''} · ${left} Swiss round${left === 1 ? '' : 's'} still to play${liveRound ? ' (including the live one)' : ''}`);
 
