@@ -354,5 +354,38 @@ S.matches[r5.id] = savedR5;
   els['no-cut-cb'].checked = false;
 }
 
+// 16. Prediction vs reality (accuracy page + Overview tab): replay the cut
+// line projection before round 1 and after R1-R4, compare with the real
+// final Swiss standings (Top 8 cut at 10 pts, decided on tiebreakers).
+{
+  // Section 3 left R5 "live"; this needs the event as it really finished.
+  S.matches[r5.id] = savedR5;
+  Object.assign(r5round, { standings_status: 'GENERATED', status: 'COMPLETE' });
+  const { finishedReplayBases, replayCutLine } = await import('../js/ui/cutReplay.js');
+  const { finalSwissRows, buildMoments, compareHtml } = await import('../js/ui/accuracy.js');
+  const steps = await replayCutLine(finishedReplayBases(), 8);
+  const built = buildMoments(steps, finalSwissRows(), 8);
+  const { moments } = built;
+  check(moments.map(m => m.label).join(',') === 'Start,R1,R2,R3,R4' && moments.map(m => m.left).join(',') === '5,4,3,2,1',
+    'accuracy: one projection before round 1 and after each Swiss round but the last, with rounds left');
+  const last = moments.at(-1).cmp;
+  check(last.real.pts === 10 && last.real.tied, 'accuracy: real cut read from the final Swiss standings (10 pts, tied)');
+  check(last.groups.some(g => g.pts === 10 && g.realPlayers === 6 && g.realIn === 4),
+    'accuracy: per-points groups count real players and how many got in (10 pts: 4 of 6)');
+  check(last.players.n > 0 && last.players.brier >= 0 && last.players.brier <= 1 && last.players.skill <= 1,
+    'accuracy: Brier score and skill in range');
+  check(moments.every(m => m.cmp.integrity.boundBroken.n === 0),
+    'accuracy: nobody proven out made it, nobody proven in missed (exact bounds are sound)');
+  check(last.integrity.proven > 0 && last.integrity.gaveImpossible.n === 0,
+    'accuracy: with one round left some players are proven out/in, and none proven out was given a chance');
+  check(last.players.right <= last.players.n && last.players.bits > 0,
+    'accuracy: right-side-of-50% count and average surprise (bits) computed');
+  check(built.players?.length === finalSwissRows().length && built.players.every(p => p.cells.length === moments.length),
+    'accuracy: per-player odds table for a small field, one cell per moment');
+  const accHtml = compareHtml(built, 8);
+  check(!/NaN|undefined|Infinity/.test(accHtml) && accHtml.includes('acc-detail'),
+    'accuracy: comparison renders without NaN/undefined');
+}
+
 if (failed) { console.error('\nSMOKE TEST FAILED'); process.exit(1); }
 console.log('\nsmoke OK');

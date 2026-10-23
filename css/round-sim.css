@@ -24,6 +24,14 @@
 }
 .btab:hover { color: var(--t1); border-color: var(--blue); }
 .btab.on    { background: var(--blue); color: #0b0e16; border-color: var(--blue); }
+/* Not available yet (Prediction vs reality before Swiss ends): still gets
+   hover / tap so it can explain itself — see js/ui/predVsReality.js. */
+.btab.locked, .btab.locked:hover { color: var(--t3); border-color: var(--b2); border-style: dashed; cursor: not-allowed; }
+.btab.locked::before { content: '🔒 '; }
+
+@media (max-width: 760px) {
+  .board-tabs { flex-wrap: wrap; }
+}
 
 /* ── BOARD MODE SWITCHING ───────────────────────── */
 .board.round-mode > .detail { display: none; }

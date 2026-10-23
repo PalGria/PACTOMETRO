@@ -1099,3 +1099,152 @@
 [data-theme="light"] .sim-verdict.lock {
   background: rgba(28,95,184,.12);
 }
+
+/* Prediction vs reality — see js/ui/accuracy.js. Shared by the Overview's
+   cut line panel (Swiss over) and accuracy.html. */
+.acc-mtable { margin-bottom: .9rem; }
+.acc-mrow {
+  display: grid;
+  grid-template-columns: 1.3fr .8fr 1fr .7fr .7fr .7fr;
+  gap: .5rem;
+  align-items: center;
+  width: 100%;
+  padding: .45rem .5rem;
+  background: none;
+  border: none;
+  border-left: 3px solid transparent;
+  border-radius: 6px;
+  color: var(--t1);
+  font: inherit;
+  font-size: .78rem;
+  text-align: left;
+  cursor: pointer;
+}
+.acc-mrow + .acc-mrow:not(.head) { border-top: 1px solid rgba(148,163,184,.1); }
+.acc-mrow:not(.head):hover { background: rgba(148,163,184,.07); }
+.acc-mrow.on { border-left-color: var(--blue); background: rgba(56,189,248,.08); }
+.acc-mrow.head {
+  cursor: default;
+  font-size: .58rem;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--t3);
+  border-bottom: 1px solid var(--b);
+  border-radius: 0;
+}
+.acc-when { font-weight: 700; display: flex; align-items: baseline; gap: .4rem; }
+.acc-when small { font-weight: 500; font-size: .66rem; color: var(--t3); }
+.acc-num, .acc-range { font-family: 'JetBrains Mono', monospace; font-weight: 700; }
+.acc-range { color: var(--t2); font-weight: 500; }
+.acc-num.dim { color: var(--t2); font-weight: 500; }
+.acc-off {
+  justify-self: start;
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 700;
+  font-size: .72rem;
+  border-radius: 99px;
+  padding: .05rem .5rem;
+}
+.acc-off.hit  { color: var(--green);  background: rgba(74,222,128,.14); }
+.acc-off.near { color: var(--yellow); background: rgba(251,191,36,.14); }
+.acc-off.miss { color: var(--red);    background: rgba(248,113,113,.14); }
+.acc-headline { font-size: .85rem; color: var(--t2); line-height: 1.5; margin-bottom: .8rem; }
+.acc-headline strong { color: var(--t1); font-family: 'JetBrains Mono', monospace; }
+.acc-detail[hidden] { display: none; }
+.acc-grow {
+  display: grid;
+  grid-template-columns: 48px 1fr 1fr 1fr;
+  gap: .6rem;
+  align-items: center;
+  padding: .4rem .4rem;
+  border-left: 3px solid transparent;
+  border-radius: 6px;
+  font-size: .78rem;
+}
+.acc-grow + .acc-grow:not(.ov-cl-header) { border-top: 1px solid rgba(148,163,184,.1); }
+.acc-grow.line { border-left-color: var(--blue); background: rgba(56,189,248,.08); }
+.acc-grow.ov-cl-header span { color: var(--t3); font-weight: 700; }
+.acc-grow.ov-cl-header b { color: var(--t1); }
+.acc-pair { display: flex; align-items: baseline; gap: .45rem; font-family: 'JetBrains Mono', monospace; }
+.acc-pair span { color: var(--t3); }
+.acc-pair span::after { content: '→'; margin-left: .45rem; color: var(--t3); }
+.acc-pair b { color: var(--t1); }
+
+@media (max-width: 760px) {
+  .acc-mrow { grid-template-columns: 1.2fr .7fr .9fr .6fr .6fr .6fr; gap: .3rem; font-size: .7rem; padding: .4rem .3rem; }
+  .acc-when small { display: none; }
+  .acc-grow { grid-template-columns: 36px 1fr 1fr 1fr; gap: .35rem; font-size: .7rem; }
+}
+
+/* Accuracy: sections, surprise lists, integrity alert, per-player odds. */
+.acc-sub {
+  margin: 1.1rem 0 .55rem;
+  font-size: .62rem;
+  font-weight: 800;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--t3);
+}
+.acc-alert {
+  margin-bottom: .8rem;
+  padding: .55rem .75rem;
+  border: 1px solid rgba(248,113,113,.45);
+  border-radius: 8px;
+  background: rgba(248,113,113,.1);
+  color: var(--red);
+  font-size: .78rem;
+  font-weight: 600;
+}
+.acc-flag { color: var(--red); }
+.acc-surp { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: .75rem; margin-top: .3rem; }
+.acc-surp-title { font-size: .68rem; font-weight: 700; color: var(--t2); margin-bottom: .35rem; }
+.acc-who {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: .5rem;
+  align-items: center;
+  padding: .28rem 0;
+  font-size: .78rem;
+}
+.acc-who + .acc-who { border-top: 1px solid rgba(148,163,184,.08); }
+.acc-who.none { display: block; color: var(--t3); font-size: .72rem; }
+.acc-who-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.acc-who-rank { font-family: 'JetBrains Mono', monospace; font-size: .68rem; color: var(--t3); }
+
+.acc-pl-wrap { overflow-x: auto; }
+.acc-pl { width: 100%; border-collapse: collapse; font-size: .72rem; }
+.acc-pl th {
+  position: sticky; top: 0;
+  background: var(--card);
+  font-size: .58rem;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--t3);
+  text-align: center;
+  padding: .3rem .25rem;
+  border-bottom: 1px solid var(--b2);
+}
+.acc-pl th:nth-child(2) { text-align: left; }
+.acc-pl td { padding: .22rem .25rem; border-bottom: 1px solid rgba(148,163,184,.07); }
+.acc-pl tr.made td { background: rgba(74,222,128,.04); }
+.acc-pl-rank { font-family: 'JetBrains Mono', monospace; color: var(--t3); width: 2.5rem; }
+.acc-pl-name { white-space: nowrap; max-width: 11rem; overflow: hidden; text-overflow: ellipsis; }
+.acc-pl-res { white-space: nowrap; font-weight: 700; text-align: center; }
+.acc-pl tr.made .acc-pl-res { color: var(--green); }
+.acc-pl tr:not(.made) .acc-pl-res { color: var(--t3); }
+.acc-cell {
+  font-family: 'JetBrains Mono', monospace;
+  text-align: center;
+  border-radius: 4px;
+  min-width: 3.1rem;
+}
+.acc-cell.in     { color: var(--green); }
+.acc-cell.likely { color: var(--yellow); }
+.acc-cell.maybe  { color: var(--orange); }
+.acc-cell.out    { color: var(--t3); }
+.acc-cell.surprise { outline: 1.5px solid var(--red); outline-offset: -2px; }
+.acc-cell.proven { font-family: inherit; font-size: .62rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; }
+.acc-cell.proven.locked { color: var(--green); background: rgba(74,222,128,.12); }
+.acc-cell.proven.out    { color: var(--t3); background: rgba(148,163,184,.08); }

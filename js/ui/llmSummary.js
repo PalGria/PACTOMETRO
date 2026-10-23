@@ -14,11 +14,12 @@
 import S from '../state.js';
 import { fmtOmw } from '../utils.js';
 import { buildHistory } from '../tournament.js';
-import { eventTotals, swissRounds, activeIdsAfter, futureSwissRounds, swissEntryGates, pointsGate } from '../engine/adapter.js';
+import { eventTotals, swissRounds, activeIdsAfter, futureSwissRounds, swissEntryGates, pointsGate, provenFacts } from '../engine/adapter.js';
 import { DEFAULTS } from '../engine/montecarlo.js';
 import { getTopCut } from '../services/storage.js';
 import { verdictText, pctText } from './verdict.js';
 import { cutLineSummary, cutLineNeed, bankedLivePts, CUT_SAFE, CUT_COULD } from './overview.js';
+import { fmtChance } from './cutStats.js';
 
 const RESULT_WORD = { W: 'WIN', L: 'LOSS', D: 'DRAW' };
 
@@ -127,6 +128,8 @@ export function buildLlmSummary(pid, roundId, scenario, cutLine = null) {
 
   const ev  = S.event;
   const cut = getTopCut();
+  // "0%" / "100%" only for what is proven; the simulation alone says <1% / >99%.
+  const facts = cut ? provenFacts(lastRound.id, cut) : new Map();
   const { totalRounds, totalPlayers } = eventTotals();
   const liveRound = swiss.find(r => r.status === 'IN_PROGRESS' && r.pairings_status === 'GENERATED' && r.standings_status !== 'GENERATED');
   const played = swiss.findIndex(r => r.id === lastRound.id) + 1;
@@ -251,7 +254,7 @@ export function buildLlmSummary(pid, roundId, scenario, cutLine = null) {
       const me = p.id === pid ? '  ◀ ME' : '';
       const pIn = res?.pInById?.[p.id];
       const status = _isActive(p) ? '' : ' [DROPPED]';
-      L.push(`#${p.rank}. ${_handle(p)}${status} — ${_rec(p)}, ${p.points} pts | ${fmtOmw(p.opponent_match_win_percentage)} / ${fmtOmw(p.game_win_percentage)} / ${fmtOmw(p.opponent_game_win_percentage)} | max ${maxPts(p)} | ${pIn != null ? _pct(pIn) : '—'}${me}`);
+      L.push(`#${p.rank}. ${_handle(p)}${status} — ${_rec(p)}, ${p.points} pts | ${fmtOmw(p.opponent_match_win_percentage)} / ${fmtOmw(p.game_win_percentage)} / ${fmtOmw(p.opponent_game_win_percentage)} | max ${maxPts(p)} | ${pIn != null ? fmtChance(pIn, facts.get(p.id)) : '—'}${me}`);
       L.push(`     ${_path(p.id, labelOf) || 'no matches'}`);
     }
     if (total > contenders.length) L.push(`(${total - contenders.length} more players with an outside chance not listed.)`);
@@ -309,7 +312,7 @@ export function buildLlmSummary(pid, roundId, scenario, cutLine = null) {
       const need = min => cutLineNeed(res, latest.points, cutLine.R, min, own, banked);
       const fmtNeed = n => (n ? `${n.label} (${_pct(n.p)})` : 'out of reach');
       const from = banked != null ? ` from here (my R${liveRound.round_number} result, +${banked} pts, is already in)` : '';
-      L.push(`ME: ${_pct(res.pInById?.[pid] ?? 0)} to make the cut overall. Over the rounds still to play${from}: to be ≥${CUT_SAFE * 100}% safe I need ${fmtNeed(need(CUT_SAFE))}; for a ≥${CUT_COULD * 100}% shot, ${fmtNeed(need(CUT_COULD))}.`);
+      L.push(`ME: ${fmtChance(res.pInById?.[pid] ?? 0, facts.get(pid))} to make the cut overall. Over the rounds still to play${from}: to be ≥${CUT_SAFE * 100}% safe I need ${fmtNeed(need(CUT_SAFE))}; for a ≥${CUT_COULD * 100}% shot, ${fmtNeed(need(CUT_COULD))}.`);
     }
   }
 

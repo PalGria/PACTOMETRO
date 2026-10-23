@@ -14,6 +14,7 @@ import { resetRoundSim, syncRoundSim, renderRoundSim } from '../ui/roundSim.js';
 import { resetOppPool, renderOppPool } from '../ui/oppPool.js';
 import { renderAllRounds } from '../ui/allRounds.js';
 import { renderOverview } from '../ui/overview.js';
+import { syncPvrTab, renderPredVsReality } from '../ui/predVsReality.js';
 import { validateLoadedEvent, defaultViewRound } from '../engine/adapter.js';
 import { switchBoardTab } from '../ui/boardTabs.js';
 
@@ -60,6 +61,8 @@ function _renderAll() {
   if (board?.classList.contains('pool-mode'))      renderOppPool();
   if (board?.classList.contains('standings-mode')) renderAllRounds();
   if (board?.classList.contains('overview-mode'))  renderOverview();
+  syncPvrTab();
+  if (board?.classList.contains('pvr-mode'))       renderPredVsReality();
 }
 
 // Keeps the visible URL a valid, re-shareable link to this event — copying
@@ -206,6 +209,7 @@ export function exitEvent() {
   S.viewRound = null; S.simRound = null; S.activeId = null;
   S.version = null; S.updatedAt = null; S.finished = false;
   S.gatePts = null; $('gate-wrap').hidden = true;
+  syncPvrTab();
   resetTracker();
   resetRoundSim();
   resetOppPool();

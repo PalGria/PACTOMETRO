@@ -20,6 +20,11 @@ import { pairSwiss, makeRng } from './pairing.js';
 
 export const DEFAULTS = { samples: 2000, seed: 20240613, pDraw: 0.04, pIdraw: 0.9 };
 
+// Bump whenever a change alters simulation results (outcome model, pairing,
+// tiebreakers, sample counts): the accuracy page caches its comparisons
+// under this, and shows it next to every score.
+export const MODEL_VERSION = 2; // 2: per-player odds pooled on big fields
+
 const pairKey = (a, b) => `${a}:${b}`;
 
 // Entry rule of a later Swiss phase (Day 2), from adapter.swissEntryGates():
@@ -477,7 +482,9 @@ export function simulateAll(opts) {
 //   byPts: [{ pts, players (mean count at pts), pIn (P in cut | pts) }] desc,
 //   byStart: { [startPts]: { [finalPts]: [n, nIn] } } — byPts split by the
 //            points each player had going in, for "what do I need",
-//   pInById: { [id]: P(in cut) } for every player in the state,
+//   pInById: { [id]: P(in cut) } for every player in the state — on fields
+//            bigger than the run count, blended half-and-half with the
+//            players in the same spot (see poolKey below),
 //   finalById: { [id]: { [finalPts]: [n, nIn] } } — each player's own final
 //            totals, so results already locked in a live round are respected,
 //   bubble:  { [linePts]: { n, lastIn: [p25, p50, p75], firstOut: [p25, p50, p75] } }
@@ -565,9 +572,43 @@ export function simulateCutLine({ state, activeIds, futureRounds, cut, gates = n
     pIn: (inAtPts[pts] || 0) / atPts[pts],
   }));
 
+  // With more players than runs, one player's own share is mostly noise (a
+  // 2% chance over 120 runs reads 0% or 0.8% at random). Players on the same
+  // points, still playing and with the same result already reported in a
+  // live round are interchangeable but for tiebreakers, so their pooled
+  // share is blended in, weighted like as many runs again. Measured on the
+  // accuracy page (2024-player Challenge): no more "0%" players who made
+  // it, better Brier and log loss; small fields score better unpooled.
+  const live = futureRounds[0]?.pairs ? futureRounds[0] : null;
+  const liveGain = new Map();
+  if (live) {
+    if (live.byeId != null) liveGain.set(live.byeId, 3);
+    for (const [a, b] of live.pairs) {
+      const r = live.locked?.[pairKey(a, b)];
+      if (r) { liveGain.set(a, r === 'D' ? 1 : r === 'W1' ? 3 : 0); liveGain.set(b, r === 'D' ? 1 : r === 'W2' ? 3 : 0); }
+    }
+  }
+  const activeSet = new Set(activeIds);
+  const poolKey = id => `${points(state[id])}|${activeSet.has(id) ? 1 : 0}|${liveGain.get(id) ?? ''}`;
+  const poolWeight = rankIds.length > samples ? samples : 0;
+  const pooled = new Map();
+  if (poolWeight) {
+    for (const id of rankIds) {
+      const k = poolKey(id), e = pooled.get(k) || [0, 0];
+      e[0] += inById.get(id) || 0; e[1]++;
+      pooled.set(k, e);
+    }
+  }
+
   const pInById = {}, finalById = {};
   for (const id of rankIds) {
-    pInById[id] = (inById.get(id) || 0) / samples;
+    const own = inById.get(id) || 0;
+    if (poolWeight) {
+      const [inSum, n] = pooled.get(poolKey(id));
+      pInById[id] = (own + poolWeight * inSum / (n * samples)) / (samples + poolWeight);
+    } else {
+      pInById[id] = own / samples;
+    }
     finalById[id] = finalMap.get(id);
   }
 

@@ -11,6 +11,7 @@ import { $, extractEventId } from './utils.js';
 import { renderOverview, getCutLineProjection } from './ui/overview.js';
 import { switchBoardTab } from './ui/boardTabs.js';
 import { buildLlmSummary } from './ui/llmSummary.js';
+import { wirePvrTab, renderPredVsReality } from './ui/predVsReality.js';
 
 const _board = () => document.getElementById('board');
 
@@ -138,12 +139,14 @@ $('d-back-btn').addEventListener('click', () => { switchBoardTab('overview'); re
 $('btab-round').addEventListener('click', () => { switchBoardTab('round'); renderRoundSim(); });
 $('btab-pool').addEventListener('click', () => { switchBoardTab('pool'); renderOppPool(); });
 $('btab-standings').addEventListener('click', () => { switchBoardTab('standings'); renderAllRounds(); });
+wirePvrTab();
 
 // Top cut controls — keep both the simulator (if a player's shown) and the
 // overview dashboard (if it's the visible tab) in sync.
-$('no-cut-cb').addEventListener('change', () => { $('top-cut-input').disabled = $('no-cut-cb').checked; saveTopCut(); renderStandings(); if (S.activeId) renderSimulation(S.activeId); renderOverview(); });
-$('top-cut-input').addEventListener('input', () => { saveTopCut(); renderStandings(); if (S.activeId) renderSimulation(S.activeId); renderOverview(); });
-$('gate-input').addEventListener('input', () => { saveGate(); if (S.activeId) renderSimulation(S.activeId); renderOverview(); });
+function _rerenderPvr() { if (_board()?.classList.contains('pvr-mode')) renderPredVsReality(); }
+$('no-cut-cb').addEventListener('change', () => { $('top-cut-input').disabled = $('no-cut-cb').checked; saveTopCut(); renderStandings(); if (S.activeId) renderSimulation(S.activeId); renderOverview(); _rerenderPvr(); });
+$('top-cut-input').addEventListener('input', () => { saveTopCut(); renderStandings(); if (S.activeId) renderSimulation(S.activeId); renderOverview(); _rerenderPvr(); });
+$('gate-input').addEventListener('input', () => { saveGate(); if (S.activeId) renderSimulation(S.activeId); renderOverview(); _rerenderPvr(); });
 
 // Player search — the magnifying glass toggles a search row below the top
 // cut bar; closing it clears the filter too, so the roster never stays

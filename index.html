@@ -54,6 +54,7 @@
     <button class="btab"    id="btab-round">Round Sim</button>
     <button class="btab"    id="btab-pool">Opp Pool</button>
     <button class="btab"    id="btab-standings">Standings</button>
+    <button class="btab locked" id="btab-pvr" aria-disabled="true">Prediction vs reality</button>
   </div>
 
   <!-- Board -->
@@ -267,6 +268,9 @@
 
     <!-- All Rounds Standings -->
     <div class="all-rounds" id="all-rounds"></div>
+
+    <!-- Prediction vs reality (unlocked once Swiss is over) -->
+    <div class="pvr" id="pvr"><div class="pvr-inner" id="pvr-root"></div></div>
 
     <!-- Round Simulator -->
     <div class="round-sim" id="round-sim">

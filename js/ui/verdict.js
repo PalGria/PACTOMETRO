@@ -25,7 +25,8 @@ export function pctHtml(res, cut) {
   if (res.locked) return '100%';
   if (res.pCut == null) return '—';
   const p = res.pCut * 100;
-  const txt = p >= 99.5 && p < 100 ? '>99%' : p > 0 && p < 0.5 ? '<1%' : `${Math.round(p)}%`;
+  // 0% / 100% are kept for out / locked above: a run count can't prove them.
+  const txt = p >= 99.5 ? '>99%' : p < 0.5 ? '<1%' : `${Math.round(p)}%`;
   return txt;
 }
 

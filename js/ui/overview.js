@@ -28,13 +28,16 @@ import { $, fmtOmw } from '../utils.js';
 import { getTopCut, getFollowed } from '../services/storage.js';
 import {
   defaultViewRound, projectRound, swissRounds, eventTotals,
-  stateAfterRound, stateBeforeRound, futureSwissRounds, activeIdsAfter, swissEntryGates, pointsGate,
+  stateAfterRound, stateBeforeRound, futureSwissRounds, activeIdsAfter, swissEntryGates, pointsGate, provenFacts,
 } from '../engine/adapter.js';
 import { staticCutTable, pactWindow, pactSet, DEFAULTS } from '../engine/montecarlo.js';
 import { verdictHtml } from './verdict.js';
 import { renderBracketHtml } from './bracket.js';
 import { getScenarioResults } from './simulation.js';
 import { runCutLineSimulation } from '../services/simWorker.js';
+import { CUT_SAFE, CUT_COULD, pinTier as _pinTier, fmtPct as _fmtPct, fmtChance, cutSummary as _cutSummary } from './cutStats.js';
+import { cutSamples as _cutSamples, finishedReplayBases, replayCutLine } from './cutReplay.js';
+import { finalSwissRows } from './accuracy.js';
 
 // Which sub-tab of the Top cut panel is showing. Module-level so it
 // survives a re-render (cut changes, live updates) but resets on a fresh
@@ -223,10 +226,12 @@ function _recordFor(pts, R) {
   return d ? `${w}-${l}-${d}` : `${w}-${l}`;
 }
 
-function _fmtPct(p) {
-  if (p >= 0.995 && p < 1) return '>99%';
-  if (p > 0 && p < 0.005) return '<1%';
-  return `${Math.round(p * 100)}%`;
+// "Projected cut line" while Swiss runs, "Cut line" once it's over (how the
+// projections did lives in its own tab: js/ui/predVsReality.js).
+function _cutLineTitle(cut) {
+  const inputs = cut != null ? _cutLineInputs() : null;
+  const over = inputs && !inputs.future.length && inputs.base;
+  return `<div class="ov-panel-title">${over ? 'Cut line' : 'Projected cut line'}</div>`;
 }
 
 // Hidden until _fillCutLine has something for it.
@@ -241,28 +246,6 @@ function _cutSidePanel(key, title, order) {
 function _renderCutLineShell(cut) {
   if (!cut) return `<div class="ov-empty">Set a top cut to project the cut line.</div>`;
   return `<div id="ov-cutline-body"><div class="ov-empty">Simulating the rest of the event…</div></div>`;
-}
-
-const CUT_SAFE = 0.95, CUT_COULD = 0.05;
-
-// Colour tier for a P(make it): sure / likely / long shot / out.
-function _pinTier(p) {
-  return p >= CUT_SAFE ? 'in' : p >= 0.5 ? 'likely' : p >= CUT_COULD ? 'maybe' : 'out';
-}
-
-// Likely cut, "safe with" and "could make it with" for one simulation result.
-// Safe = fewest points that still get in ≥95% of the time; "could" = fewest
-// points with at least a 5% shot (tiebreakers permitting). Safe walks down
-// from the top and stops at the first miss, so sampling noise on a thin row
-// below can't make a lower total look safe.
-function _cutSummary(res) {
-  const lineEntries = Object.entries(res.lineCounts).map(([p, c]) => [Number(p), c]);
-  const [modePts, modeCount] = lineEntries.reduce((a, b) => (b[1] > a[1] ? b : a));
-  const rows = res.byPts;
-  const firstMiss = rows.findIndex(r => r.pIn < CUT_SAFE);
-  const safe = firstMiss === 0 ? null : rows[(firstMiss < 0 ? rows.length : firstMiss) - 1];
-  const could = rows.filter(r => r.pIn >= CUT_COULD).at(-1) || null;
-  return { modePts, modeShare: modeCount / res.samples, safe, could };
 }
 
 // P(in) for someone on `start` points who finishes on `final`: the
@@ -385,7 +368,7 @@ function _followedNeedHtml(res, ctx) {
       <div class="ov-cl-fp tier-${_pinTier(p)}">
         <div class="ov-cl-fp-head">
           <span class="ov-cl-fp-name">${f.handle}</span>
-          <span class="ov-cl-pill ${_pinTier(p)}">${_fmtPct(p)}</span>
+          <span class="ov-cl-pill ${_pinTier(p)}">${fmtChance(p, ctx.facts?.get(f.id))}</span>
         </div>
         <div class="ov-cl-fp-meta">${f.record} · ${f.start} pts${f.banked != null ? ` · +${f.banked} this round` : ''}</div>
         <div class="ov-cl-fp-need">
@@ -656,11 +639,6 @@ function _needContext(state, activeIds, R, live = null) {
   return { R, followed, groups };
 }
 
-function _cutSamples(state, scale = 1) {
-  const n = Object.keys(state).length;
-  return Math.round(scale * Math.max(300, Math.min(1500, Math.round(150000 / Math.max(1, n)))));
-}
-
 function _fillCutLine(root, cut) {
   const token = ++_cutLineToken;
   const el = root.querySelector('#ov-cutline-body');
@@ -689,13 +667,15 @@ function _fillCutLine(root, cut) {
   };
 
   if (!future.length) {
+    const finalRows = finalSwissRows();
     el.innerHTML = _finalCutLineHtml(base.id, cut);
-    const rows = [...(S.standings[base.id] || [])].sort((a, b) => a.rank - b.rank);
-    _fillCutHistory(root, cut, base, null, rows[Math.min(cut, rows.length) - 1]?.points ?? null, show);
+    _fillCutHistory(root, cut, base, null, finalRows[Math.min(cut, finalRows.length) - 1]?.points ?? null, show,
+      replayCutLine(finishedReplayBases(), cut));
     return;
   }
 
   const ctx = _needContext(state, activeIds, future.length, future[0]);
+  ctx.facts = provenFacts(base?.id ?? null, cut); // "0%" / "100%" only when proven
   const key = _cutLineKey(base?.id ?? null, cut);
   const showRes = res => {
     if (!res) { show(`<div class="ov-empty">Nothing to simulate.</div>`); return; }
@@ -734,43 +714,22 @@ export { _cutSummary as cutLineSummary, _needFromNow as cutLineNeed, CUT_SAFE, C
 // Replays the projection as it stood after every earlier Swiss round — only
 // what was known then, no later pairings or results — and appends the
 // current one. Past rounds don't change, so each point is cached for good.
-function _fillCutHistory(root, cut, base, currentRes, actual, show) {
-  const swiss = swissRounds();
-  const total = Math.max(eventTotals().totalRounds, swiss.length);
-  const done = swiss.filter(r => r.standings_status === 'GENERATED');
+function _fillCutHistory(root, cut, base, currentRes, actual, show, replay = null) {
+  const done = swissRounds().filter(r => r.standings_status === 'GENERATED');
   // Start (before round 1), then after each completed round. With a live
   // projection the current base is covered by `currentRes`; once Swiss is
-  // over the last round has nothing left to project.
-  const bases = currentRes
-    ? (base ? [null, ...done.filter(r => r.id !== base.id)] : [])
-    : [null, ...done.slice(0, -1)];
-
-  const label = b => (b ? `R${swiss.findIndex(r => r.id === b.id) + 1}` : 'Start');
+  // over the caller passes the replay it already started.
+  const bases = base ? [null, ...done.filter(r => r.id !== base.id)] : [];
   const toPoint = (res, lab, now = false) => {
     if (!res) return null;
     const s = _cutSummary(res);
     return { label: lab, safe: s.safe?.pts ?? null, could: s.could?.pts ?? null, mode: s.modePts, now };
   };
 
-  const runOne = b => {
-    const key = `${S.event?.id}|${b?.id ?? 'start'}|${cut}|${pointsGate()?.pts ?? ''}|hist`;
-    const hit = _cutLineCache.get(key);
-    if (hit) return Promise.resolve(hit);
-    const played = b ? swiss.findIndex(r => r.id === b.id) + 1 : 0;
-    const state = b ? stateAfterRound(b.id) : stateBeforeRound(swiss[0].id);
-    const activeIds = activeIdsAfter(b?.id ?? null);
-    const futureRounds = Array(Math.max(0, total - played)).fill(null);
-    if (!futureRounds.length || !activeIds.length) return Promise.resolve(null);
-    const gates = swissEntryGates(b?.id ?? null);
-    return runCutLineSimulation({ state, activeIds, futureRounds, gates, cut, samples: _cutSamples(state, 0.4) })
-      .then(res => { _cutLineCache.set(key, res); return res; });
-  };
-
-  // One at a time: the worker is single-threaded anyway, and the current
-  // projection is already on screen.
-  bases.reduce((chain, b) => chain.then(acc => runOne(b).then(res => [...acc, toPoint(res, label(b))])), Promise.resolve([]))
-    .then(points => {
-      if (currentRes) points.push(toPoint(currentRes, base ? `${label(base)} now` : 'Now', true));
+  (replay || replayCutLine(bases, cut))
+    .then(steps => {
+      const points = steps.map(st => toPoint(st.res, st.label));
+      if (currentRes) points.push(toPoint(currentRes, base ? `R${swissRounds().findIndex(r => r.id === base.id) + 1} now` : 'Now', true));
       const width = root.querySelector('#ov-cutline-history')?.clientWidth;
       show(_historyChartHtml(points.filter(Boolean), actual, width), '#ov-cutline-history');
     })
@@ -930,7 +889,7 @@ export function renderOverview() {
       </div>
       <div class="ov-col">
         <div class="ov-panel" data-o="2">
-          <div class="ov-panel-title">Projected cut line</div>
+          ${_cutLineTitle(cut)}
           ${_renderCutLineShell(cut)}
         </div>
         ${cut && hasFollowed ? _cutSidePanel('players', 'Your players vs the cut', 3) : ''}

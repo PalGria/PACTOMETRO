@@ -386,3 +386,15 @@
 
 .ar-delta-up   { color: var(--green); }
 .ar-delta-down { color: var(--red); }
+
+/* ── PREDICTION VS REALITY TAB ─────────────────────── */
+.pvr { display: none; }
+.board.pvr-mode > .detail { display: none; }
+.board.pvr-mode .pvr { display: block; grid-column: 1 / -1; overflow-y: auto; padding: 1rem; }
+@media (min-width: 761px) {
+  .board.pvr-mode > .standings { display: none; }
+}
+.pvr-inner { max-width: 1080px; margin: 0 auto; }
+
+/* The shared fixed tooltip as a short note (wraps, unlike the OMW one). */
+.tb-tip.note { white-space: normal; max-width: min(280px, calc(100vw - 16px)); font-size: .74rem; line-height: 1.45; color: var(--t1); }

@@ -26,6 +26,7 @@ Environment:
   PM_FETCH_WORKERS   max concurrent upstream requests per fetch (default 3)
 
 Endpoints:
+  GET  /api/events               stored events (id, name, players, finished…), no upstream calls
   GET  /api/event/<id>           full bundle (event, rounds, standings, matches)
   GET  /api/event/<id>/version   {version, updated_at, ...} cheap poll for clients
   POST /api/event/<id>/refresh   fetch now if allowed by PM_REFRESH_MIN
@@ -327,6 +328,31 @@ class Store:
         with self.lock:
             return self.bundles.get(eid)
 
+    def summaries(self):
+        """One line per stored event, for the accuracy page. Memory only:
+        never touches upstream and never marks an event as watched."""
+        with self.lock:
+            bundles = list(self.bundles.values())
+        out = []
+        for b in bundles:
+            ev = b.get("event") or {}
+            swiss = [r for r in b.get("rounds", []) if r.get("phase_type") == "SWISS"]
+            first = next(iter(b.get("standings", {}).values()), [])
+            out.append({
+                "id": ev.get("id"),
+                "name": ev.get("name"),
+                "start_datetime": ev.get("start_datetime"),
+                "store": (ev.get("store") or {}).get("name"),
+                "format": (ev.get("gameplay_format") or {}).get("name"),
+                "players": ev.get("starting_player_count") or len(first),
+                "swiss_rounds": len(swiss),
+                "swiss_done": sum(1 for r in swiss if r.get("standings_status") == "GENERATED"),
+                "finished": bool(b.get("finished")),
+                "version": b.get("version"),
+            })
+        out.sort(key=lambda e: e.get("start_datetime") or "", reverse=True)
+        return out
+
     def get_or_fetch(self, eid):
         b = self.get(eid)
         if b:
@@ -488,6 +514,8 @@ class Handler(SimpleHTTPRequestHandler):
 
     def _dispatch(self, method):
         path = urllib.parse.urlsplit(self.path).path
+        if path == "/api/events" and method == "GET":
+            return self._json({"events": STORE.summaries()})
         if path.startswith("/api/event/"):
             parts = [p for p in path[5:].split("/") if p]
             if len(parts) >= 2:
@@ -501,6 +529,11 @@ class Handler(SimpleHTTPRequestHandler):
             # Shareable deep link (?e=<id>) — served client-side, so just
             # hand back the SPA shell for this one exact path.
             self.path = "/index.html"
+            return super().do_GET()
+        if path == "/accuracy" and method == "GET":
+            # How the projections held up on every stored event. No trailing
+            # slash: the page's relative css/ and js/ links resolve from here.
+            self.path = "/accuracy.html"
             return super().do_GET()
         if method != "GET":
             return self._json({"error": "not found"}, 404)

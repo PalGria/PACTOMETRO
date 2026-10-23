@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>PACTOMETRO · Accuracy</title>
+<link rel="icon" type="image/svg+xml" href="assets/logo.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/base.css">
+<script>try{if(localStorage.getItem('pm_theme')==='light')document.documentElement.dataset.theme='light'}catch(e){}</script>
+<link rel="stylesheet" href="css/layout.css">
+<link rel="stylesheet" href="css/detail.css">
+<link rel="stylesheet" href="css/accuracy.css">
+</head>
+<body>
+  <header class="header acc-header">
+    <a class="logo" href="./">Pacto<em>metro</em></a>
+    <span class="acc-title">Accuracy</span>
+    <a class="acc-back" href="./">← Back to the app</a>
+    <button class="theme-btn" id="theme-btn" title="Toggle day / night"></button>
+  </header>
+
+  <main class="acc-page">
+    <p class="acc-intro">
+      How the cut line projection held up on every event this server has stored. For each finished event,
+      the projection is replayed as it stood before round 1 and after every Swiss round, using only what was
+      known then, and compared with where the cut actually landed.
+    </p>
+    <section class="acc-summary" id="acc-summary"></section>
+    <section class="ov-panel acc-events">
+      <div class="ov-panel-title">Stored events</div>
+      <div id="acc-events"><div class="ov-empty">Loading events…</div></div>
+    </section>
+    <p class="ov-tier-note" id="acc-model"></p>
+  </main>
+
+  <script type="module" src="js/accuracyPage.js"></script>
+</body>
+</html>

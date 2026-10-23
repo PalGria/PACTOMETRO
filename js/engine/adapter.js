@@ -3,7 +3,7 @@
 // here builds engine inputs from S.rounds / S.matches / S.standings.
 
 import S from '../state.js';
-import { createState, applyApiRound, matchResult, matchGames, applyMatch, rankPlayers, validateAgainstStandings } from './swiss.js';
+import { createState, applyApiRound, matchResult, matchGames, applyMatch, rankPlayers, validateAgainstStandings, points } from './swiss.js';
 
 export const isSwiss = r => r.phase_type === 'SWISS';
 
@@ -154,6 +154,51 @@ export function activeIdsAfter(baseRoundId) {
   const rows = S.standings[baseRoundId] || [];
   const active = rows.filter(p => p.user_event_status?.registration_status === 'COMPLETE').map(p => p.id);
   return active.length ? active : rows.map(p => p.id);
+}
+
+// ── WHAT IS PROVEN ───────────────────────────────
+// After `baseRoundId` (null = before round 1): who could no longer make
+// the Top `cut` whatever happened ('out') and who could no longer miss it
+// ('locked'). Exact and deliberately conservative: a player is out when at
+// least `cut` others already have more points than his ceiling (winning
+// every round he can still play — a Day 2 points gate stops him), locked
+// when fewer than `cut` others can even reach his current points.
+export function provenFacts(baseRoundId, cut) {
+  const swiss = swissRounds();
+  const played = baseRoundId == null ? 0 : swiss.findIndex(r => r.id === baseRoundId) + 1;
+  const R = Math.max(eventTotals().totalRounds, swiss.length) - played;
+  const state = baseRoundId == null ? stateBeforeRound(swiss[0].id) : stateAfterRound(baseRoundId);
+  const active = new Set(activeIdsAfter(baseRoundId));
+  const gates = swissEntryGates(baseRoundId);
+
+  const ids = Object.keys(state).map(Number);
+  const pts = new Map(ids.map(id => [id, points(state[id])]));
+  const ceiling = id => {
+    let p = pts.get(id);
+    if (!active.has(id)) return p;
+    for (let k = 0; k < R; k++) {
+      if (gates[k]?.minPts != null && p < gates[k].minPts) break;
+      p += 3;
+    }
+    return p;
+  };
+  const ceil = new Map(ids.map(id => [id, ceiling(id)]));
+  const asc = arr => arr.sort((a, b) => a - b);
+  const ptsSorted = asc([...pts.values()]), ceilSorted = asc([...ceil.values()]);
+  // # values > v (strict) or ≥ v in an ascending array.
+  const above = (arr, v, strict) => {
+    let lo = 0, hi = arr.length;
+    while (lo < hi) { const m = (lo + hi) >> 1; if (strict ? arr[m] <= v : arr[m] < v) lo = m + 1; else hi = m; }
+    return arr.length - lo;
+  };
+
+  const facts = new Map();
+  for (const id of ids) {
+    const p = pts.get(id), c = ceil.get(id);
+    if (above(ptsSorted, c, true) >= cut) facts.set(id, 'out');            // self never counts: p ≤ c
+    else if (above(ceilSorted, p, false) - 1 < cut) facts.set(id, 'locked'); // minus self: c ≥ p
+  }
+  return facts;
 }
 
 // ── EXACT ROUND PROJECTION ───────────────────────
