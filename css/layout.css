@@ -41,6 +41,43 @@
 }
 .logo em { color: var(--t3); font-style: normal; }
 
+/* Header logo is a button (back to the Overview). On click "Pacto" does a
+   little squash-and-stretch hop and "metro" swings like a gauge needle
+   settling — see _logoHop in js/main.js. */
+button.logo {
+  display: inline-flex;
+  align-items: baseline;
+  background: none;
+  border: none;
+  padding: 0;
+  font-family: inherit;
+  line-height: inherit;
+  cursor: pointer;
+}
+button.logo:focus-visible { outline: 2px solid var(--blue); outline-offset: 4px; border-radius: 4px; }
+.logo-pacto, button.logo em { display: inline-block; }
+.logo.hop .logo-pacto { transform-origin: 50% 100%; animation: logo-hop .6s cubic-bezier(.3, .7, .4, 1.2); }
+.logo.hop em          { transform-origin: 0% 100%;  animation: logo-needle .8s ease-out .08s; }
+@keyframes logo-hop {
+  0%   { transform: none; }
+  18%  { transform: scale(1.08, .82); }                /* crouch */
+  45%  { transform: translateY(-7px) scale(.94, 1.1); } /* up, stretched */
+  72%  { transform: translateY(0) scale(1.06, .9); }    /* land */
+  86%  { transform: scale(.98, 1.03); }
+  100% { transform: none; }
+}
+@keyframes logo-needle {
+  0%   { transform: none; }
+  30%  { transform: rotate(-9deg); }
+  55%  { transform: rotate(6deg); }
+  75%  { transform: rotate(-3deg); }
+  90%  { transform: rotate(1deg); }
+  100% { transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .logo.hop .logo-pacto, .logo.hop em { animation: none; }
+}
+
 .url-form {
   display: flex;
   gap: .5rem;

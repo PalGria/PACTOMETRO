@@ -119,6 +119,25 @@ async function _copyLlmSummary(btn) {
 }
 $('llm-copy-btn').addEventListener('click', () => _copyLlmSummary($('llm-copy-btn')));
 
+// Logo: a little hop, then back to the Overview (roster drawer closed on
+// mobile so the overview is what you see). Lands before switching, unless
+// the user asked for reduced motion.
+function _logoHop() {
+  const logo = $('logo-btn');
+  logo.classList.remove('hop');
+  void logo.offsetWidth; // restart the animation on repeated clicks
+  logo.classList.add('hop');
+}
+$('logo-btn').addEventListener('click', () => {
+  _logoHop();
+  if (!S.event) return;
+  const still = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+  setTimeout(() => { closeRoster(); switchBoardTab('overview'); renderOverview(); }, still ? 0 : 320);
+});
+$('logo-btn').addEventListener('animationend', e => {
+  if (e.target.tagName === 'EM') $('logo-btn').classList.remove('hop');
+});
+
 // Roster drawer
 $('menu-btn').addEventListener('click', openRoster);
 $('close-drawer-btn').addEventListener('click', closeRoster);
