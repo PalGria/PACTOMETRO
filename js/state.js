@@ -11,6 +11,7 @@ const S = {
   version:    null, // server bundle version (content hash)
   updatedAt:  null, // epoch seconds of the last upstream change
   finished:   false,
+  gatePts:    null, // Day 2 entry points set by the user for this event (null = default)
 };
 
 export default S;

@@ -1,4 +1,4 @@
-import { restoreTopCut, saveTopCut, getTopCut } from './services/storage.js';
+import { restoreTopCut, saveTopCut, getTopCut, saveGate } from './services/storage.js';
 import { loadEvent, exitEvent, selectPlayer, refreshEvent, cancelLoad } from './controllers/eventController.js';
 import { openRoster, closeRoster } from './controllers/rosterController.js';
 import { renderStandings, setSearchQuery } from './ui/standings.js';
@@ -143,6 +143,7 @@ $('btab-standings').addEventListener('click', () => { switchBoardTab('standings'
 // overview dashboard (if it's the visible tab) in sync.
 $('no-cut-cb').addEventListener('change', () => { $('top-cut-input').disabled = $('no-cut-cb').checked; saveTopCut(); renderStandings(); if (S.activeId) renderSimulation(S.activeId); renderOverview(); });
 $('top-cut-input').addEventListener('input', () => { saveTopCut(); renderStandings(); if (S.activeId) renderSimulation(S.activeId); renderOverview(); });
+$('gate-input').addEventListener('input', () => { saveGate(); if (S.activeId) renderSimulation(S.activeId); renderOverview(); });
 
 // Player search — the magnifying glass toggles a search row below the top
 // cut bar; closing it clears the filter too, so the roster never stays

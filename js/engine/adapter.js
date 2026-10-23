@@ -15,9 +15,10 @@ export function swissRounds() {
 // metadata, known before a single match is played and unchanged for the
 // life of the event. Falls back to what's actually been seen so far if the
 // API didn't send the field (observed null on some events).
+// Events with a Day 2 have several Swiss phases; their rounds add up.
 export function eventTotals() {
-  const swissPhase = S.event?.tournament_phases?.find(p => p.round_type === 'SWISS');
-  const totalRounds  = swissPhase?.number_of_rounds || swissRounds().length;
+  const swissTotal = _swissPhases().reduce((n, p) => n + _phaseRounds(p), 0);
+  const totalRounds  = swissTotal || swissRounds().length;
   const totalPlayers = S.event?.starting_player_count || allPlayerIds().length;
   return { totalRounds, totalPlayers };
 }
@@ -82,6 +83,60 @@ export function futureSwissRounds(baseRoundId) {
   const swiss = swissRounds();
   const idx = swiss.findIndex(r => r.id === baseRoundId);
   return swiss.slice(idx + 1).map(r => (r.pairings_status === 'GENERATED' ? knownRound(r.id) : null));
+}
+
+function _swissPhases() {
+  return (S.event?.tournament_phases || [])
+    .filter(p => p.round_type === 'SWISS')
+    .sort((a, b) => (a.order_in_phases ?? 0) - (b.order_in_phases ?? 0));
+}
+const _phaseRounds = p => p.number_of_rounds || (p.rounds || []).length;
+
+// Points needed to play a later Swiss phase (Day 2) that the API gives no
+// rank for. The API does not publish the rule: Challenges have asked for 18
+// (event 427779: everyone on 18+ after 8 rounds played Day 2, nobody below),
+// other events default to "at most two losses". The user can override it
+// (S.gatePts, see storage.restoreGate).
+const CHALLENGE_GATE_PTS = 18;
+const _isChallenge = () => /challenge/i.test(S.event?.name || '');
+const _defaultGatePts = before => (_isChallenge() ? CHALLENGE_GATE_PTS : 3 * Math.max(0, before - 2));
+
+// The first later Swiss phase entered by points, or null when there is none
+// (single Swiss phase, or every later phase says which rank gets in).
+export function pointsGate() {
+  let before = 0;
+  for (const [i, ph] of _swissPhases().entries()) {
+    if (i > 0 && !ph.rank_required_to_enter_phase) {
+      const defaultPts = _defaultGatePts(before);
+      return { phaseName: ph.phase_name, afterRound: before, defaultPts, isChallenge: _isChallenge(), pts: S.gatePts ?? defaultPts };
+    }
+    before += _phaseRounds(ph);
+  }
+  return null;
+}
+
+// Who may play each Swiss round still to come after `baseRoundId`, aligned
+// with futureSwissRounds(): null, or the entry rule of a later Swiss phase
+// (Day 2) on its first round — { topN } when the phase says which rank gets
+// in, otherwise { minPts } (see pointsGate). Once that round is paired, its
+// real pairings take over in the simulation.
+export function swissEntryGates(baseRoundId) {
+  const swiss = swissRounds();
+  const played = baseRoundId == null ? 0 : swiss.findIndex(r => r.id === baseRoundId) + 1;
+  const gates = [];
+  let before = 0;
+  _swissPhases().forEach((ph, i) => {
+    const n = _phaseRounds(ph);
+    for (let j = 0; j < n; j++) {
+      if (before + j < played) continue;
+      if (i === 0 || j > 0) { gates.push(null); continue; }
+      gates.push(ph.rank_required_to_enter_phase
+        ? { topN: ph.rank_required_to_enter_phase }
+        : { minPts: S.gatePts ?? _defaultGatePts(before) });
+    }
+    before += n;
+  });
+  return gates;
 }
 
 // Players still in the event after `baseRoundId`: those paired in the next

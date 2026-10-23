@@ -1,7 +1,7 @@
 import S from '../state.js';
 import { $, extractEventId } from '../utils.js';
 import { getEventBundle, appBase } from '../services/api.js';
-import { saveUrl, savePlayer, saveCache, loadCache } from '../services/storage.js';
+import { saveUrl, savePlayer, saveCache, loadCache, restoreGate } from '../services/storage.js';
 import { startLive, stopLive, refreshNow, checkNow } from '../services/live.js';
 import { loader } from '../ui/loader.js';
 import { showWelcome, hideWelcome } from '../ui/welcome.js';
@@ -41,6 +41,8 @@ export function applyBundle(b) {
     }
   }
   S.omwRange = { min: Math.max(0, gMin - 0.02), max: Math.min(1, gMax + 0.02) };
+
+  restoreGate();
 
   // Default the top-cut box from the event when the user never set one
   if (b.event?.top_cut_size && !localStorage.getItem('pm_top_cut')) {
@@ -203,6 +205,7 @@ export function exitEvent() {
   S.event = null; S.rounds = []; S.standings = {}; S.matches = {};
   S.viewRound = null; S.simRound = null; S.activeId = null;
   S.version = null; S.updatedAt = null; S.finished = false;
+  S.gatePts = null; $('gate-wrap').hidden = true;
   resetTracker();
   resetRoundSim();
   resetOppPool();

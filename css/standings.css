@@ -216,6 +216,33 @@
 .top-cut-input:focus  { border-color: var(--yellow); }
 .top-cut-input:disabled { opacity: .25; cursor: not-allowed; }
 
+/* Day 2 entry points — only for events with a points-gated Day 2. */
+.gate-label {
+  display: flex;
+  align-items: center;
+  gap: .35rem;
+  cursor: help;
+}
+.gate-label[hidden] { display: none; }
+.gate-input {
+  width: 44px;
+  background: var(--card);
+  border: 1px solid rgba(56,189,248,.35);
+  border-radius: 6px;
+  color: var(--blue);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 1rem;
+  font-weight: 700;
+  text-align: center;
+  padding: .15rem .2rem;
+  outline: none;
+  -moz-appearance: textfield;
+}
+.gate-input::-webkit-inner-spin-button,
+.gate-input::-webkit-outer-spin-button { -webkit-appearance: none; }
+.gate-input:focus { border-color: var(--blue); }
+.gate-unit { font-size: .68rem; color: var(--t3); }
+
 .no-cut-label {
   display: flex;
   align-items: center;

@@ -28,7 +28,7 @@ import { $, fmtOmw } from '../utils.js';
 import { getTopCut, getFollowed } from '../services/storage.js';
 import {
   defaultViewRound, projectRound, swissRounds, eventTotals,
-  stateAfterRound, stateBeforeRound, futureSwissRounds, activeIdsAfter,
+  stateAfterRound, stateBeforeRound, futureSwissRounds, activeIdsAfter, swissEntryGates, pointsGate,
 } from '../engine/adapter.js';
 import { staticCutTable, pactWindow, pactSet, DEFAULTS } from '../engine/montecarlo.js';
 import { verdictHtml } from './verdict.js';
@@ -203,6 +203,7 @@ function _cutLineInputs() {
   return {
     base,
     future:    futureSwissRounds(base?.id ?? null),
+    gates:     swissEntryGates(base?.id ?? null),
     state:     base ? stateAfterRound(base.id) : stateBeforeRound(swiss[0].id),
     activeIds: activeIdsAfter(base?.id ?? null),
   };
@@ -211,7 +212,7 @@ function _cutLineInputs() {
 function _cutLineKey(baseId, cut) {
   let confirmed = 0;
   for (const r of swissRounds()) for (const m of S.matches[r.id] || []) if (m.winning_player != null || m.match_is_bye || m.match_is_intentional_draw || m.match_is_unintentional_draw) confirmed++;
-  return `${S.event?.id}|${baseId}|${cut}|${confirmed}`;
+  return `${S.event?.id}|${baseId}|${cut}|${confirmed}|${pointsGate()?.pts ?? ''}`;
 }
 
 // Most common final record for a points total over `R` Swiss rounds (wins
@@ -667,7 +668,7 @@ function _fillCutLine(root, cut) {
 
   const inputs = _cutLineInputs();
   if (!inputs || !inputs.activeIds.length) { el.innerHTML = `<div class="ov-empty">Waiting for pairings…</div>`; return; }
-  const { base, future, state, activeIds } = inputs;
+  const { base, future, gates, state, activeIds } = inputs;
   const { totalRounds } = eventTotals();
 
   // Re-query on arrival: the element may have been replaced by a re-render.
@@ -708,7 +709,7 @@ function _fillCutLine(root, cut) {
   const cached = _cutLineCache.get(key);
   if (cached) { showRes(cached); return; }
 
-  runCutLineSimulation({ state, activeIds, futureRounds: future, cut, samples: _cutSamples(state) })
+  runCutLineSimulation({ state, activeIds, futureRounds: future, gates, cut, samples: _cutSamples(state) })
     .then(res => { _cutLineCache.set(key, res); showRes(res); })
     .catch(err => { console.error(err); show(`<div class="ov-empty">Simulation failed.</div>`); });
 }
@@ -720,11 +721,11 @@ export function getCutLineProjection(cut) {
   if (cut == null) return Promise.resolve(null);
   const inputs = _cutLineInputs();
   if (!inputs || !inputs.activeIds.length || !inputs.future.length) return Promise.resolve(null);
-  const { base, future, state, activeIds } = inputs;
+  const { base, future, gates, state, activeIds } = inputs;
   const key = _cutLineKey(base?.id ?? null, cut);
   const hit = _cutLineCache.get(key);
   if (hit) return Promise.resolve({ res: hit, R: future.length });
-  return runCutLineSimulation({ state, activeIds, futureRounds: future, cut, samples: _cutSamples(state) })
+  return runCutLineSimulation({ state, activeIds, futureRounds: future, gates, cut, samples: _cutSamples(state) })
     .then(res => { _cutLineCache.set(key, res); return res ? { res, R: future.length } : null; });
 }
 
@@ -752,7 +753,7 @@ function _fillCutHistory(root, cut, base, currentRes, actual, show) {
   };
 
   const runOne = b => {
-    const key = `${S.event?.id}|${b?.id ?? 'start'}|${cut}|hist`;
+    const key = `${S.event?.id}|${b?.id ?? 'start'}|${cut}|${pointsGate()?.pts ?? ''}|hist`;
     const hit = _cutLineCache.get(key);
     if (hit) return Promise.resolve(hit);
     const played = b ? swiss.findIndex(r => r.id === b.id) + 1 : 0;
@@ -760,7 +761,8 @@ function _fillCutHistory(root, cut, base, currentRes, actual, show) {
     const activeIds = activeIdsAfter(b?.id ?? null);
     const futureRounds = Array(Math.max(0, total - played)).fill(null);
     if (!futureRounds.length || !activeIds.length) return Promise.resolve(null);
-    return runCutLineSimulation({ state, activeIds, futureRounds, cut, samples: _cutSamples(state, 0.4) })
+    const gates = swissEntryGates(b?.id ?? null);
+    return runCutLineSimulation({ state, activeIds, futureRounds, gates, cut, samples: _cutSamples(state, 0.4) })
       .then(res => { _cutLineCache.set(key, res); return res; });
   };
 

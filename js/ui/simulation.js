@@ -1,7 +1,7 @@
 import S from '../state.js';
 import { $ } from '../utils.js';
 import { getTopCut } from '../services/storage.js';
-import { stateAfterRound, futureSwissRounds, activeIdsAfter, swissRounds } from '../engine/adapter.js';
+import { stateAfterRound, futureSwissRounds, activeIdsAfter, swissRounds, swissEntryGates, pointsGate } from '../engine/adapter.js';
 import { pactWindow, pactBound } from '../engine/montecarlo.js';
 import { runSimulation } from '../services/simWorker.js';
 import { verdictHtml, pctHtml } from './verdict.js';
@@ -13,7 +13,7 @@ const _cache = new Map();
 function _cacheKey(pid, roundId, cut) {
   let confirmed = 0;
   for (const r of swissRounds()) for (const m of S.matches[r.id] || []) if (m.winning_player != null || m.match_is_bye || m.match_is_intentional_draw || m.match_is_unintentional_draw) confirmed++;
-  return `${S.event?.id}|${roundId}|${pid}|${cut}|${confirmed}`;
+  return `${S.event?.id}|${roundId}|${pid}|${cut}|${confirmed}|${pointsGate()?.pts ?? ''}`;
 }
 
 function _samplesFor(players) {
@@ -40,7 +40,7 @@ export function getScenarioResults(pid, roundId, cut) {
 
   const state     = stateAfterRound(round.id);
   const activeIds = activeIdsAfter(round.id);
-  return runSimulation({ state, me: pid, activeIds, futureRounds: future, cut, samples: _samplesFor(standings.length) })
+  return runSimulation({ state, me: pid, activeIds, futureRounds: future, gates: swissEntryGates(round.id), cut, samples: _samplesFor(standings.length) })
     .then(results => { _cache.set(key, results); return results; });
 }
 
@@ -234,7 +234,7 @@ export function renderSimulation(pid) {
 
   const run = () => {
     if (!stillCurrent()) return; // the user moved on while we waited for the paint
-    runSimulation({ state, me: pid, activeIds, futureRounds: future, cut, samples: _samplesFor(standings.length) })
+    runSimulation({ state, me: pid, activeIds, futureRounds: future, gates: swissEntryGates(round.id), cut, samples: _samplesFor(standings.length) })
       .then(results => {
         _cache.set(key, results);
         if (stillCurrent()) renderResults(results);

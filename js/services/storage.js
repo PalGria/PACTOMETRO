@@ -1,5 +1,6 @@
 import S from '../state.js';
 import { $ } from '../utils.js';
+import { pointsGate } from '../engine/adapter.js';
 
 // ── PERSISTENCE ──────────────────────────────────
 export function saveUrl(url)  { localStorage.setItem('pm_url', url); }
@@ -22,6 +23,37 @@ export function restoreTopCut() {
   if (val) $('top-cut-input').value = val;
   $('no-cut-cb').checked      = noCut;
   $('top-cut-input').disabled = noCut;
+}
+
+// Day 2 entry points, per event — only shown for events with a later Swiss
+// phase entered by points (see adapter.pointsGate). The box shows the
+// points in use; a value equal to the default (or an empty box) clears the
+// override, so a later change of default still applies.
+export function restoreGate() {
+  const wrap = $('gate-wrap');
+  S.gatePts = null;
+  const eid = S.event?.id;
+  const saved = eid != null ? parseInt(localStorage.getItem(`pm_gate_${eid}`)) : NaN;
+  if (!Number.isNaN(saved)) S.gatePts = saved;
+  const g = pointsGate();
+  if (!wrap) return;
+  wrap.hidden = !g;
+  if (!g) return;
+  $('gate-input').value = g.pts;
+  wrap.title = `Points needed after round ${g.afterRound} to play ${g.phaseName}. The API does not publish it` +
+    (g.isChallenge ? `; Challenges have asked for ${g.defaultPts}.` : `; default ${g.defaultPts} (at most two losses).`);
+}
+
+export function saveGate() {
+  const eid = S.event?.id;
+  const g = pointsGate();
+  if (eid == null || !g) return;
+  const v = parseInt($('gate-input').value);
+  S.gatePts = Number.isNaN(v) || v === g.defaultPts ? null : v;
+  try {
+    if (S.gatePts == null) localStorage.removeItem(`pm_gate_${eid}`);
+    else localStorage.setItem(`pm_gate_${eid}`, String(S.gatePts));
+  } catch(e) {}
 }
 
 // The cache holds the last server bundle so a reopened tab paints instantly;

@@ -14,7 +14,7 @@
 import S from '../state.js';
 import { fmtOmw } from '../utils.js';
 import { buildHistory } from '../tournament.js';
-import { eventTotals, swissRounds, activeIdsAfter, futureSwissRounds } from '../engine/adapter.js';
+import { eventTotals, swissRounds, activeIdsAfter, futureSwissRounds, swissEntryGates, pointsGate } from '../engine/adapter.js';
 import { DEFAULTS } from '../engine/montecarlo.js';
 import { getTopCut } from '../services/storage.js';
 import { verdictText, pctText } from './verdict.js';
@@ -175,6 +175,23 @@ export function buildLlmSummary(pid, roundId, scenario, cutLine = null) {
   L.push('Swiss pairing: players are paired against others on the same points (pairing down when a bracket is odd), never the same opponent twice.');
   L.push('Intentional draws (ID) are allowed: both players take 1 pt without playing — typical in the last round(s) when both are safe on the draw.');
   L.push('OMW keeps changing until the end: my opponents\' future results move my tiebreakers.');
+  const swissPhases = (ev.tournament_phases || []).filter(p => p.round_type === 'SWISS')
+    .sort((a, b) => (a.order_in_phases ?? 0) - (b.order_in_phases ?? 0));
+  if (swissPhases.length > 1) {
+    // Entry rule of each later phase, read off the gates for the whole event.
+    const gates = swissEntryGates(null);
+    let at = 0;
+    const parts = swissPhases.map((ph, i) => {
+      const n = ph.number_of_rounds || (ph.rounds || []).length;
+      const g = gates[at];
+      const entry = i === 0 || !g ? ''
+        : g.topN ? ` — only the Top ${g.topN} after round ${at} play it`
+        : ` — only players with ≥${g.minPts} pts after round ${at} play it (${S.gatePts != null ? 'value I set' : pointsGate()?.isChallenge ? 'usual Challenge rule' : 'assumed "at most 2 losses"'}; the API does not publish it)`;
+      at += n;
+      return `${ph.phase_name} (${n} rounds${entry})`;
+    });
+    L.push(`Swiss is split in phases; points carry over: ${parts.join(' → ')}.`);
+  }
 
   // ── ME ──
   section(`ME — ${handle}`);

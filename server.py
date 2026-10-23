@@ -32,6 +32,7 @@ Endpoints:
   GET  /api/<upstream path>      transparent proxy (legacy / debugging)
 """
 
+import gzip
 import hashlib
 import json
 from concurrent.futures import ThreadPoolExecutor
@@ -74,10 +75,16 @@ def upstream_get(path, params=None):
     url = API_BASE + path
     if params:
         url += "?" + urllib.parse.urlencode(params)
-    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (pactometro)"})
+    # Ask for gzip like a browser does: ~14x fewer bytes on big pages, and
+    # Cloudflare caches compressed and uncompressed responses separately
+    # (Vary: Accept-Encoding), so this also shares the browsers' cache entry.
+    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (pactometro)", "Accept-Encoding": "gzip"})
     try:
         with urllib.request.urlopen(req, timeout=30) as r:
-            return json.loads(r.read())
+            body = r.read()
+            if (r.headers.get("Content-Encoding") or "").lower() == "gzip":
+                body = gzip.decompress(body)
+            return json.loads(body)
     except urllib.error.HTTPError as e:
         raise UpstreamError(e.code, e.read())
 

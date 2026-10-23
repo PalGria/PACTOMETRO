@@ -22,6 +22,14 @@ export const DEFAULTS = { samples: 2000, seed: 20240613, pDraw: 0.04, pIdraw: 0.
 
 const pairKey = (a, b) => `${a}:${b}`;
 
+// Entry rule of a later Swiss phase (Day 2), from adapter.swissEntryGates():
+// only the players who meet it keep playing. Applied only to rounds whose
+// pairings are not known yet; known pairings already say who plays.
+function applyGate(s, active, gate) {
+  if (gate.topN != null) return rankPlayers(s, active).slice(0, gate.topN).map(r => r.id);
+  return active.filter(id => points(s[id]) >= gate.minPts);
+}
+
 // ── DETERMINISTIC BOUNDS ─────────────────────────
 // best: rank if I win everything and every possible tie goes my way.
 // absoluteWorst: rank if every other player does as well as the schedule
@@ -349,7 +357,7 @@ function forced(scenario, meIsA) {
 
 // Returns { pCut, samples, min, max, p5, p50, p95, rankCounts, ptsCut }
 export function simulateScenario(opts) {
-  const { state, me, activeIds, futureRounds, scenario, cut } = opts;
+  const { state, me, activeIds, futureRounds, scenario, cut, gates = null } = opts;
   const samples = opts.samples ?? DEFAULTS.samples;
   const pDraw   = opts.pDraw   ?? DEFAULTS.pDraw;
   const pIdraw  = opts.pIdraw  ?? DEFAULTS.pIdraw;
@@ -369,7 +377,10 @@ export function simulateScenario(opts) {
       const known = futureRounds[k];
       let pairs, byeId, locked;
       if (known && known.pairs) { pairs = known.pairs; byeId = known.byeId ?? null; locked = known.locked || {}; }
-      else { ({ pairs, byeId } = pairSwiss(s, active, rng)); locked = {}; }
+      else {
+        if (gates?.[k]) active = applyGate(s, active, gates[k]);
+        ({ pairs, byeId } = pairSwiss(s, active, rng)); locked = {};
+      }
       const hasLocked = !!known?.locked && Object.keys(locked).length > 0;
 
       const isFinal = k === R - 1;
@@ -473,7 +484,7 @@ export function simulateAll(opts) {
 //            OMW of the last player in and the first one out, over the runs
 //            where the cut was tied at linePts (decided on tiebreakers),
 // }
-export function simulateCutLine({ state, activeIds, futureRounds, cut, samples = 1000, seed = DEFAULTS.seed, pDraw = DEFAULTS.pDraw, pIdraw = DEFAULTS.pIdraw }) {
+export function simulateCutLine({ state, activeIds, futureRounds, cut, gates = null, samples = 1000, seed = DEFAULTS.seed, pDraw = DEFAULTS.pDraw, pIdraw = DEFAULTS.pIdraw }) {
   if (cut == null) return null;
   const rng = makeRng(seed);
   const R = futureRounds.length;
@@ -492,12 +503,16 @@ export function simulateCutLine({ state, activeIds, futureRounds, cut, samples =
 
   for (let n = 0; n < samples; n++) {
     const s = cloneState(state);
+    let active = activeIds;
 
     for (let k = 0; k < R; k++) {
       const known = futureRounds[k];
       let pairs, byeId, locked;
       if (known && known.pairs) { pairs = known.pairs; byeId = known.byeId ?? null; locked = known.locked || {}; }
-      else { ({ pairs, byeId } = pairSwiss(s, activeIds, rng)); locked = {}; }
+      else {
+        if (gates?.[k]) active = applyGate(s, active, gates[k]);
+        ({ pairs, byeId } = pairSwiss(s, active, rng)); locked = {};
+      }
       const hasLocked = !!known?.locked && Object.keys(locked).length > 0;
 
       const idSet = k === R - 1 ? lockedWithDraw(s, pairs, byeId, cut, null) : null;
