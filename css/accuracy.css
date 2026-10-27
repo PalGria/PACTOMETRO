@@ -5,7 +5,7 @@
 html, body { height: auto; min-height: 100%; overflow: auto; }
 
 .acc-header { position: sticky; top: 0; z-index: 5; }
-.acc-header .logo { text-decoration: none; color: inherit; }
+.acc-header .logo { text-decoration: none; color: inherit; display: inline-flex; align-items: baseline; }
 .acc-title {
   font-size: .68rem;
   font-weight: 800;

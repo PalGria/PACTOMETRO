@@ -78,6 +78,34 @@ button.logo:focus-visible { outline: 2px solid var(--blue); outline-offset: 4px;
   .logo.hop .logo-pacto, .logo.hop em { animation: none; }
 }
 
+.logo-alpha {
+  align-self: center;
+  margin-left: .45rem;
+  padding: .05rem .35rem;
+  border: 1px solid var(--b2);
+  border-radius: 99px;
+  font-size: .55rem;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: lowercase;
+  color: var(--t3);
+}
+
+/* Easter egg — see js/ui/maquina.js */
+.logo.maquina { color: var(--red); }
+
+/* ── DISCLAIMER FOOTER ──────────────────────────── */
+.disclaimer {
+  flex-shrink: 0;
+  padding: .3rem 1.25rem;
+  border-top: 1px solid var(--b);
+  background: var(--bg);
+  color: var(--t3);
+  font-size: .62rem;
+  line-height: 1.4;
+  text-align: center;
+}
+
 .url-form {
   display: flex;
   gap: .5rem;

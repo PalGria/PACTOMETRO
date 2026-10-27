@@ -6,6 +6,7 @@ import { renderChart } from './chart.js';
 import { renderHistory } from './history.js';
 import { renderOpponentTracker } from './tracker.js';
 import { projectRound } from '../engine/adapter.js';
+import { syncMaquina } from './maquina.js';
 
 // ── RENDER: DETAIL ───────────────────────────────
 export function renderDetail(pid) {
@@ -15,6 +16,7 @@ export function renderDetail(pid) {
   if (!lastRound) return;
   const latest = (S.standings[lastRound.id] || []).find(p => p.id === pid);
   if (!latest) return;
+  syncMaquina();
 
   const ues = latest.user_event_status;
   const handle = ues.best_identifier || latest.player.best_identifier;
@@ -68,4 +70,5 @@ export function clearDetail() {
   $('d-content').style.display = 'none';
   $('d-placeholder').style.display = '';
   document.querySelectorAll('.p-row.active').forEach(tr => tr.classList.remove('active'));
+  syncMaquina();
 }

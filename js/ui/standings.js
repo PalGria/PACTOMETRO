@@ -3,6 +3,7 @@ import { $, fmtOmw } from '../utils.js';
 import { getTopCut, getFollowed, toggleFollowed } from '../services/storage.js';
 import { projectRound } from '../engine/adapter.js';
 import { renderOverview } from './overview.js';
+import { syncMaquina } from './maquina.js';
 
 export { getTopCut };
 
@@ -62,6 +63,7 @@ export function renderRoundTabs() {
 
 // ── RENDER: STANDINGS ────────────────────────────
 export function renderStandings() {
+  syncMaquina();
   const round = S.rounds.find(r => r.id === S.viewRound);
   const canProject = round?.status === 'IN_PROGRESS'
     && round?.standings_status !== 'GENERATED'
@@ -147,6 +149,7 @@ export function renderStandings() {
       e.currentTarget.textContent = on ? '★' : '☆';
       e.currentTarget.title = on ? 'Unfollow' : 'Follow';
       e.currentTarget.classList.toggle('followed', on);
+      syncMaquina();
       if (!S.activeId) renderOverview();
     });
   });
